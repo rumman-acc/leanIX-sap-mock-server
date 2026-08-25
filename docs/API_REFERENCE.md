@@ -2,6 +2,8 @@
 
 Base URL (local): `http://localhost:4000`
 
+**Interactive docs:** REST endpoints (auth/Integration API/Webhooks) are documented live via Swagger UI at `/api-docs` (raw spec at `/api-docs-json`). The GraphQL endpoint is self-documenting via introspection — open it in a browser for GraphQL Playground.
+
 ## Authentication
 
 ### `POST /services/mtm/v1/oauth2/token`

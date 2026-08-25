@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { LeanIxConfig } from './config/leanix.config';
 
@@ -12,9 +13,28 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const config = configService.get<LeanIxConfig>('leanix')!;
 
+  const swaggerDocument = SwaggerModule.createDocument(
+    app,
+    new DocumentBuilder()
+      .setTitle('LeanIX Mock Server — REST API')
+      .setDescription(
+        'REST surface of the LeanIX Development Simulator: auth (MTM), Integration API (LDIF sync), and Webhooks. ' +
+          'The Fact Sheet CRUD/query API is GraphQL, not REST — explore it interactively at ' +
+          '/services/pathfinder/v1/graphql (GraphQL Playground) instead of here.',
+      )
+      .setVersion('1.0')
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
+      .build(),
+  );
+  SwaggerModule.setup('api-docs', app, swaggerDocument);
+
   await app.listen(config.port);
   // eslint-disable-next-line no-console
   console.log(`LeanIX mock server listening on http://localhost:${config.port}`);
+  // eslint-disable-next-line no-console
+  console.log(`REST API docs (Swagger UI): http://localhost:${config.port}/api-docs`);
+  // eslint-disable-next-line no-console
+  console.log(`GraphQL Playground: http://localhost:${config.port}/services/pathfinder/v1/graphql`);
 }
 
 bootstrap();

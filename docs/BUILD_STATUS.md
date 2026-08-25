@@ -81,6 +81,7 @@ _(add more rows as they come up)_
 ### Phase 4 — Polish — mostly done
 - [ ] Admin UI — **skipped**. Spec marks it "if practical"; given everything else required, prioritized the API surface, tests, and docs instead. GraphQL Playground (below) covers interactive exploration.
 - [x] GraphQL Playground/GraphiQL enabled at `/services/pathfinder/v1/graphql` — live-verified (`curl -H "Accept: text/html"` returns the Apollo Sandbox landing page HTML)
+- [x] Swagger/OpenAPI UI for the REST surface (auth/Integration API/Webhooks) at `/api-docs` (`@nestjs/swagger`, DTO classes in `apps/api/src/rest/dto/`) — added on request (2026-08-25) since GraphQL Playground only covers the GraphQL half; live-verified `/api-docs` returns 200 and `/api-docs-json` lists all 8 REST routes
 - [x] Full test suite pass — 17 unit + 9 e2e, all green against real Postgres + managed Redis
 - [x] Documentation — `README.md` (full walkthrough incl. curl examples for every surface), `docs/API_REFERENCE.md`, `docs/MIGRATION_GUIDE.md`
 - [x] Sample data seed scripts — `packages/prisma/seed.ts` (deterministic ids), `scripts/setup.sh`, `scripts/seed-workspace.sh`

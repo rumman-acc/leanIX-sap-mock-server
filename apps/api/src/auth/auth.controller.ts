@@ -1,7 +1,9 @@
 import { Body, Controller, HttpCode, Post, Res } from '@nestjs/common';
 import { Response } from 'express';
+import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
+import { TokenRequestDto, TokenResponseDto } from '../rest/dto/token-request.dto';
 
 interface TokenRequestBody {
   grant_type?: string;
@@ -9,6 +11,7 @@ interface TokenRequestBody {
   client_secret?: string;
 }
 
+@ApiTags('Authentication (MTM)')
 @Controller('services/mtm/v1/oauth2')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -16,6 +19,14 @@ export class AuthController {
   @Public()
   @Post('token')
   @HttpCode(200)
+  @ApiOperation({
+    summary: 'Exchange client credentials for a JWT access token',
+    description: 'Mock accepts any client_id starting with "dev-token-" and client_secret starting with "dev-secret-", always resolving to workspaceRole ADMIN.',
+  })
+  @ApiConsumes('application/x-www-form-urlencoded')
+  @ApiBody({ type: TokenRequestDto })
+  @ApiResponse({ status: 200, description: 'Token issued', type: TokenResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid client credentials' })
   token(@Body() body: TokenRequestBody, @Res() res: Response): void {
     const { grant_type, client_id, client_secret } = body ?? {};
 

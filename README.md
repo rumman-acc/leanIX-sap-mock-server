@@ -95,6 +95,12 @@ curl -X POST http://localhost:4000/services/mtm/v1/oauth2/token \
 
 Any `client_id` starting with `dev-token-` and `client_secret` starting with `dev-secret-` is accepted and always resolves to `workspaceRole: ADMIN` (per spec section 4.5). The returned JWT is valid for 1 hour.
 
+## 6b. Explore the API
+
+- **REST** (auth, Integration API, Webhooks): Swagger UI at [http://localhost:4000/api-docs](http://localhost:4000/api-docs) — every endpoint, request/response shape, and a "Try it out" button (click **Authorize** and paste a bearer token from step 6 first). Raw OpenAPI JSON at `/api-docs-json`.
+- **GraphQL** (Fact Sheets, Meta Model, Search): GraphQL Playground at [http://localhost:4000/services/pathfinder/v1/graphql](http://localhost:4000/services/pathfinder/v1/graphql) (open it in a browser) — full schema docs in the sidebar, autocomplete, and an explorer. This is where Fact Sheet CRUD lives; it isn't in the REST/Swagger surface.
+- **MCP**: no web UI (it's a stdio-based protocol for AI clients, not HTTP) — see section 11 below to run it and point an MCP client (e.g. Claude Desktop) at it, or use `@modelcontextprotocol/sdk`'s `Client`/`StdioClientTransport` to call `tools/list` yourself.
+
 ## 7. GraphQL usage
 
 Endpoint: `POST /services/pathfinder/v1/graphql` (also opens as a GraphQL Playground in a browser).

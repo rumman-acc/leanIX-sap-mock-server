@@ -1,0 +1,371 @@
+// packages/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Meta Model --------------------------------------------
+
+model FactSheetType {
+  id            String   @id @default(cuid())
+  technicalKey  String   @unique @map("technical_key")
+  label         String
+  description   String?
+  icon          String?
+  color         String?
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  attributes    Attribute[]
+  factSheets    FactSheet[]
+  relationsAsSource RelationType[] @relation("SourceType")
+  relationsAsTarget RelationType[] @relation("TargetType")
+
+  @@map("fact_sheet_types")
+}
+
+model Attribute {
+  id            String   @id @default(cuid())
+  technicalKey  String   @map("technical_key")
+  label         String
+  description   String?
+  dataType      String   @map("data_type")
+  factSheetTypeId String @map("fact_sheet_type_id")
+  factSheetType   FactSheetType @relation(fields: [factSheetTypeId], references: [id])
+  mandatory     Boolean  @default(false)
+  hidden        Boolean  @default(false)
+  readOnly      Boolean  @default(false) @map("read_only")
+
+  allowedValues AllowedValue[]
+  attributeValues AttributeValue[]
+
+  @@unique([factSheetTypeId, technicalKey])
+  @@map("attributes")
+}
+
+model AllowedValue {
+  id          String   @id @default(cuid())
+  value       String
+  label       String
+  color       String?
+  attributeId String   @map("attribute_id")
+  attribute   Attribute @relation(fields: [attributeId], references: [id])
+
+  @@map("allowed_values")
+}
+
+model RelationType {
+  id            String   @id @default(cuid())
+  technicalKey  String   @map("technical_key")
+  label         String
+  description   String?
+  sourceTypeId  String   @map("source_type_id")
+  sourceType    FactSheetType @relation("SourceType", fields: [sourceTypeId], references: [id])
+  targetTypeId  String   @map("target_type_id")
+  targetType    FactSheetType @relation("TargetType", fields: [targetTypeId], references: [id])
+  cardinality   String   @default("MANY_TO_MANY")
+  mandatory     Boolean  @default(false)
+
+  relations     Relation[]
+
+  @@unique([sourceTypeId, targetTypeId, technicalKey])
+  @@map("relation_types")
+}
+
+// --- Fact Sheets -------------------------------------------
+
+model FactSheet {
+  id            String   @id @default(cuid())
+  typeId        String   @map("type_id")
+  type          FactSheetType @relation(fields: [typeId], references: [id])
+  name          String
+  description   String?
+  externalId    String?  @map("external_id")
+  displayName   String   @map("display_name")
+
+  lifecycle     Json?
+
+  qualitySeal   String   @default("BROKEN") @map("quality_seal")
+  completion    Float    @default(0.0)
+
+  status        String   @default("ACTIVE")
+  trashBin      Boolean  @default(false) @map("trash_bin")
+  archivedAt    DateTime? @map("archived_at")
+  autoDeleteAt  DateTime? @map("auto_delete_at")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdBy     String   @map("created_by")
+  updatedBy     String   @map("updated_by")
+
+  attributes    AttributeValue[]
+  tags          TagAssignment[]
+  subscriptions Subscription[]
+
+  sourceRelations Relation[] @relation("SourceFactSheet")
+  targetRelations Relation[] @relation("TargetFactSheet")
+
+  syncMappings  SyncMapping[]
+  syncLogs      SyncLog[]
+
+  @@index([typeId])
+  @@index([externalId])
+  @@index([status])
+  @@index([trashBin])
+  @@map("fact_sheets")
+}
+
+model AttributeValue {
+  id            String   @id @default(cuid())
+  factSheetId   String   @map("fact_sheet_id")
+  factSheet     FactSheet @relation(fields: [factSheetId], references: [id], onDelete: Cascade)
+  attributeId   String   @map("attribute_id")
+  attribute     Attribute @relation(fields: [attributeId], references: [id])
+  value         Json
+
+  @@unique([factSheetId, attributeId])
+  @@map("attribute_values")
+}
+
+model Relation {
+  id            String   @id @default(cuid())
+  relationTypeId String  @map("relation_type_id")
+  relationType   RelationType @relation(fields: [relationTypeId], references: [id])
+
+  sourceId      String   @map("source_id")
+  source        FactSheet @relation("SourceFactSheet", fields: [sourceId], references: [id])
+  targetId      String   @map("target_id")
+  target        FactSheet @relation("TargetFactSheet", fields: [targetId], references: [id])
+
+  description   String?
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([relationTypeId, sourceId, targetId])
+  @@map("relations")
+}
+
+// --- Tags --------------------------------------------------
+
+model TagGroup {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String?
+  color         String?
+  tags          Tag[]
+
+  @@map("tag_groups")
+}
+
+model Tag {
+  id            String   @id @default(cuid())
+  name          String
+  groupId       String   @map("group_id")
+  group         TagGroup @relation(fields: [groupId], references: [id])
+  color         String?
+
+  assignments   TagAssignment[]
+
+  @@unique([groupId, name])
+  @@map("tags")
+}
+
+model TagAssignment {
+  id            String   @id @default(cuid())
+  factSheetId   String   @map("fact_sheet_id")
+  factSheet     FactSheet @relation(fields: [factSheetId], references: [id], onDelete: Cascade)
+  tagId         String   @map("tag_id")
+  tag           Tag @relation(fields: [tagId], references: [id])
+
+  @@unique([factSheetId, tagId])
+  @@map("tag_assignments")
+}
+
+// --- Subscriptions -----------------------------------------
+
+model Subscription {
+  id            String   @id @default(cuid())
+  factSheetId   String   @map("fact_sheet_id")
+  factSheet     FactSheet @relation(fields: [factSheetId], references: [id], onDelete: Cascade)
+  userId        String   @map("user_id")
+  userName      String   @map("user_name")
+  userEmail     String   @map("user_email")
+  type          String
+  roles         String[]
+
+  @@unique([factSheetId, userId, type])
+  @@map("subscriptions")
+}
+
+// --- Trash Bin ---------------------------------------------
+
+model TrashBinEntry {
+  id            String   @id @default(cuid())
+  factSheetId   String   @unique @map("fact_sheet_id")
+  factSheetType String   @map("fact_sheet_type")
+  name          String
+  externalId    String?  @map("external_id")
+  archivedAt    DateTime @map("archived_at")
+  autoDeleteAt  DateTime @map("auto_delete_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@index([autoDeleteAt])
+  @@map("trash_bin")
+}
+
+// --- Sync & Integration ------------------------------------
+
+model IntegrationConfiguration {
+  id              String   @id @default(cuid())
+  name            String
+  connectorType   String   @map("connector_type")
+  connectorId     String   @map("connector_id")
+  connectorVersion String  @map("connector_version")
+  processingDirection String @map("processing_direction")
+  processingMode  String   @map("processing_mode")
+  processors      Json
+  status          String   @default("ACTIVE")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([connectorId, connectorType])
+  @@map("integration_configurations")
+}
+
+model SyncMapping {
+  id              String   @id @default(cuid())
+  sourceSystem    String   @map("source_system")
+  sourceRecordId  String   @map("source_record_id")
+  factSheetId     String   @map("fact_sheet_id")
+  factSheet       FactSheet @relation(fields: [factSheetId], references: [id])
+  factSheetType   String   @map("fact_sheet_type")
+  lastSyncedAt    DateTime @map("last_synced_at")
+  syncHash        String   @map("sync_hash")
+  status          String   @default("ACTIVE")
+
+  @@unique([sourceSystem, sourceRecordId])
+  @@index([factSheetId])
+  @@map("sync_mappings")
+}
+
+model SyncRun {
+  id              String   @id @default(cuid())
+  connectorType   String   @map("connector_type")
+  connectorId     String   @map("connector_id")
+  connectorVersion String  @map("connector_version")
+  processingDirection String @default("inbound") @map("processing_direction")
+  processingMode  String   @default("partial") @map("processing_mode")
+  description     String?
+  status          String   @default("CREATED")
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  errorCount      Int      @default(0) @map("error_count")
+  warningCount    Int      @default(0) @map("warning_count")
+  processedCount  Int      @default(0) @map("processed_count")
+  createdCount    Int      @default(0) @map("created_count")
+  updatedCount    Int      @default(0) @map("updated_count")
+  deletedCount    Int      @default(0) @map("deleted_count")
+
+  logs            SyncLog[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("sync_runs")
+}
+
+model SyncLog {
+  id              String   @id @default(cuid())
+  syncRunId       String   @map("sync_run_id")
+  syncRun         SyncRun  @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  factSheetId     String?  @map("fact_sheet_id")
+  factSheet       FactSheet? @relation(fields: [factSheetId], references: [id])
+  level           String
+  message         String
+  details         Json?
+  sourceRecordId  String?  @map("source_record_id")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([syncRunId])
+  @@index([level])
+  @@map("sync_logs")
+}
+
+// --- Webhooks ----------------------------------------------
+
+model Webhook {
+  id              String   @id @default(cuid())
+  url             String
+  events          String[]
+  secret          String?
+  active          Boolean  @default(true)
+  workspaceId     String   @map("workspace_id")
+
+  deliveries      WebhookDelivery[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id              String   @id @default(cuid())
+  webhookId       String   @map("webhook_id")
+  webhook         Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  eventType       String   @map("event_type")
+  payload         Json
+  responseStatus  Int?     @map("response_status")
+  responseBody    String?  @map("response_body")
+  success         Boolean  @default(false)
+  errorMessage    String?  @map("error_message")
+  attemptCount    Int      @default(1) @map("attempt_count")
+  nextRetryAt     DateTime? @map("next_retry_at")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  @@index([webhookId])
+  @@index([success])
+  @@index([nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+// --- Users & Workspace -------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  role          String   @default("MEMBER")
+  workspaceId   String   @map("workspace_id")
+  apiToken      String?  @unique @map("api_token")
+  apiTokenSecret String? @map("api_token_secret")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Workspace {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  displayName   String   @map("display_name")
+  description   String?
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("workspaces")
+}

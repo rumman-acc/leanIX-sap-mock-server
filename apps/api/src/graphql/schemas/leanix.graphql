@@ -1,0 +1,327 @@
+# Explicit schema definition: without this, graphql-js auto-detects any type literally named
+# "Query"/"Mutation"/"Subscription" as a root operation type. We have a domain type named
+# `Subscription` (fact-sheet subscribers) that is NOT a GraphQL root Subscription type, so we
+# must declare roots explicitly to avoid that collision.
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+# --- Scalars -------------------------------------------------
+
+scalar DateTime
+scalar JSON
+
+# --- Enums ---------------------------------------------------
+
+enum FactSheetStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum QualitySeal {
+  BROKEN
+  APPROVED
+}
+
+enum SubscriptionType {
+  RESPONSIBLE
+  ACCOUNTABLE
+  OBSERVER
+}
+
+enum SyncRunStatus {
+  CREATED
+  RUNNING
+  FINISHED
+  FAILED
+  CANCELLED
+}
+
+# --- Inputs --------------------------------------------------
+
+input BaseFactSheetInput {
+  name: String!
+  type: String!
+  description: String
+  externalId: String
+  tags: [TagInput]
+  subscriptions: [SubscriptionInput]
+}
+
+input TagInput {
+  name: String!
+  group: TagGroupInput
+}
+
+input TagGroupInput {
+  name: String!
+}
+
+input SubscriptionInput {
+  user: UserInput!
+  type: SubscriptionType!
+  roles: [String]
+}
+
+input UserInput {
+  id: ID
+  email: String
+  name: String
+}
+
+input FilterInput {
+  factSheetType: String
+  status: FactSheetStatus
+  fieldFilters: [FieldFilterInput]
+  relationFilters: [RelationFilterInput]
+}
+
+input FieldFilterInput {
+  key: String!
+  values: [String]!
+  operator: FilterOperator = EQUALS
+}
+
+enum FilterOperator {
+  EQUALS
+  CONTAINS
+  STARTS_WITH
+  ENDS_WITH
+  IN
+  NOT_IN
+}
+
+input RelationFilterInput {
+  relationType: String!
+  targetType: String
+  targetId: ID
+}
+
+input SortInput {
+  mode: SortMode = BY_FIELD
+  key: String
+  direction: SortDirection = ASC
+}
+
+enum SortMode {
+  BY_FIELD
+  BY_NAME
+  BY_UPDATED_AT
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+input Patch {
+  op: PatchOperation!
+  path: String!
+  value: JSON
+}
+
+enum PatchOperation {
+  add
+  replace
+  remove
+}
+
+# --- Types ---------------------------------------------------
+
+type FactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type Lifecycle {
+  asString: String
+  phases: [LifecyclePhase!]!
+}
+
+type LifecyclePhase {
+  phase: String!
+  startDate: DateTime
+}
+
+type Tag {
+  id: ID!
+  name: String!
+  group: TagGroup!
+  color: String
+}
+
+type TagGroup {
+  id: ID!
+  name: String!
+  description: String
+  color: String
+}
+
+type Subscription {
+  id: ID!
+  user: User!
+  type: SubscriptionType!
+  roles: [String!]!
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+}
+
+type AttributeValue {
+  id: ID!
+  attribute: Attribute!
+  value: JSON!
+}
+
+type Attribute {
+  id: ID!
+  technicalKey: String!
+  label: String!
+  description: String
+  dataType: String!
+  mandatory: Boolean!
+  hidden: Boolean!
+  readOnly: Boolean!
+  allowedValues: [AllowedValue!]!
+}
+
+type AllowedValue {
+  id: ID!
+  value: String!
+  label: String!
+  color: String
+}
+
+type Relation {
+  id: ID!
+  relationType: RelationType!
+  source: FactSheet!
+  target: FactSheet!
+  description: String
+}
+
+type RelationType {
+  id: ID!
+  technicalKey: String!
+  label: String!
+  description: String
+  sourceType: FactSheetType!
+  targetType: FactSheetType!
+  cardinality: String!
+  mandatory: Boolean!
+}
+
+type FactSheetType {
+  id: ID!
+  technicalKey: String!
+  label: String!
+  description: String
+  icon: String
+  color: String
+  enabled: Boolean!
+  fields: [Attribute!]!
+  relations: [RelationType!]!
+}
+
+# --- Connection Types (Relay) --------------------------------
+
+type FactSheetConnection {
+  totalCount: Int!
+  edges: [FactSheetEdge!]!
+  pageInfo: PageInfo!
+}
+
+type FactSheetEdge {
+  node: FactSheet!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type SearchConnection {
+  totalCount: Int!
+  edges: [SearchEdge!]!
+  pageInfo: PageInfo!
+}
+
+type SearchEdge {
+  node: SearchResult!
+  cursor: String!
+}
+
+type SearchResult {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  highlight: String
+}
+
+# --- Queries -------------------------------------------------
+
+type Query {
+  factSheet(id: ID!): FactSheet
+  allFactSheets(
+    filter: FilterInput
+    sort: SortInput
+    first: Int
+    after: String
+  ): FactSheetConnection!
+  search(query: String!, first: Int, after: String): SearchConnection!
+  allFactSheetTypes: [FactSheetType!]!
+  factSheetType(technicalKey: String!): FactSheetType
+}
+
+# --- Mutations -----------------------------------------------
+
+type Mutation {
+  createFactSheet(input: BaseFactSheetInput!): FactSheetPayload!
+  updateFactSheet(id: ID!, patches: [Patch!]!): FactSheetPayload!
+  archiveFactSheet(id: ID!): FactSheetPayload!
+  reviveFactSheet(id: ID!): FactSheetPayload!
+  deleteFactSheet(id: ID!): DeletePayload!
+}
+
+type FactSheetPayload {
+  factSheet: FactSheet
+  errors: [Error!]
+}
+
+type DeletePayload {
+  id: ID!
+  success: Boolean!
+}
+
+type Error {
+  message: String!
+  code: String
+  path: String
+}

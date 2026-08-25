@@ -57,9 +57,9 @@ export const WEBHOOK_RETRY_SCHEDULE_MS = [0, 5_000, 25_000, 120_000, 600_000, 3_
 export const WEBHOOK_MAX_ATTEMPTS = 10;
 export const WEBHOOK_TIMEOUT_MS = 50_000;
 
+/** Delay before the given attempt number (1 = initial delivery = immediate, 2 = first retry, ...). */
 export function webhookRetryDelayMs(attemptNumber: number): number {
-  if (attemptNumber <= 0) return 0;
-  const idx = Math.min(attemptNumber, WEBHOOK_RETRY_SCHEDULE_MS.length - 1);
+  const idx = Math.max(0, Math.min(attemptNumber - 1, WEBHOOK_RETRY_SCHEDULE_MS.length - 1));
   return WEBHOOK_RETRY_SCHEDULE_MS[idx];
 }
 

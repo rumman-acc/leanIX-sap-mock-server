@@ -47,20 +47,23 @@ _(add more rows as they come up)_
 
 **Ambiguity/ext beyond spec:** added an `IntegrationConfiguration` Prisma model (not in spec's Appendix D) to persist `POST /services/integration-api/v1/configurations` payloads for Phase 2 — spec section 15 requires the endpoint but Appendix D didn't model it.
 
-### Phase 2 — Integration
-- [ ] Integration API (configurations, synchronizationRuns, withUrlInput, status)
-- [ ] LDIF validation
-- [ ] LDIF processing (partial/full)
-- [ ] InboundFactSheet processor
-- [ ] Sync run lifecycle + logs
-- [ ] SHA-256 sync mapping / change detection
-- [ ] Relations CRUD via patches
-- [ ] Tags
-- [ ] Subscriptions
-- [ ] Webhook registration/management REST API
-- [ ] Webhook dispatch (BullMQ) + HMAC signature
-- [ ] Webhook retry schedule (10 attempts, 50s timeout)
-- [ ] Tests
+### Phase 2 — Integration — DONE, live-verified
+- [x] Integration API: `configurations` (POST/GET), `synchronizationRuns` (inline + `/withUrlInput`), `synchronizationRuns/{id}` status, `synchronizationRuns/{id}/logs` (extra endpoint, not in spec, for debugging row-level sync logs)
+- [x] LDIF validation (`packages/shared/src/utils/validators.ts`, reused by REST layer) — verified live: missing headers / bad type → `INVALID_LDIF`
+- [x] LDIF processing partial/full (`integration/ldif/ldif.processor.ts`) — verified live end-to-end with Appendix B.2-style payload (relations included)
+- [x] Two-pass relation resolution: pass 1 creates/updates fact sheets and builds sourceRecordId→factSheetId map; pass 2 wires up `rel*` fields using that map (falls back to existing `SyncMapping` for cross-run relation targets)
+- [x] Sync run lifecycle CREATED→RUNNING→FINISHED/FAILED — verified live (invalid fact sheet type in a batch correctly sets `FAILED` with `errorCount`, other valid items still processed)
+- [x] Sync logs with row-level INFO/WARNING/ERROR detail — verified live
+- [x] SHA-256 sync mapping / change detection (`SyncMapping.syncHash`, skips a partial-mode item whose normalized source data hasn't changed)
+- [x] Relations CRUD via GraphQL patches (add/replace/remove using relation type + relation instance id) — implemented in `fact-sheet-patch.service.ts`
+- [x] Tags (add/remove via patch, plus on create) — implemented
+- [x] Subscriptions (on create) — implemented
+- [x] Webhook registration/management REST API (`POST/GET/DELETE /services/webhook/v1/webhooks`)
+- [x] Webhook dispatch via BullMQ + HMAC-SHA256 signature — **live-verified**: registered a real local receiver, triggered `createFactSheet`, confirmed `X-LeanIX-Event`/`X-LeanIX-Delivery`/`X-LeanIX-Signature` headers and independently recomputed the HMAC to confirm an exact byte-for-byte match
+- [x] Webhook retry schedule (0/5s/25s/2m/10m/1h, max 10 attempts, 50s timeout) — implemented as self-managed BullMQ delayed re-enqueue (not BullMQ's built-in backoff, to match the exact spec schedule); found and fixed an off-by-one bug in `webhookRetryDelayMs` via unit test before it shipped
+- [x] Tests — 17 unit tests, 9 e2e tests (incl. full LDIF-to-fact-sheet flow and webhook delivery w/ signature verification), all passing
+
+**Known simplification (documented, not a gap in required behavior):** LDIF processing doesn't manage `tags`/`subscriptions` (no example in the spec's LDIF payloads includes them) — only native fields, custom attributes, and relations. Sync-run background processing uses a plain async promise (not a BullMQ job) since spec only *suggests* BullMQ "where appropriate"; webhook delivery — where retry/backoff genuinely matters — does use BullMQ.
 
 ### Phase 3 — MCP
 - [ ] MCP server scaffold (`apps/mcp`)

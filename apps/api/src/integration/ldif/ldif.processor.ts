@@ -6,6 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { MetaModelService } from '../../meta-model/meta-model.service';
 import { SyncLogService } from '../sync/sync-log.service';
 import { SyncRunService } from '../sync/sync-run.service';
+import { INTERACTIVE_TX_OPTIONS } from '../../common/prisma/transaction-options';
 import { FactSheetEvent } from '../../graphql/services/fact-sheet.service';
 
 const NATIVE_KEYS = new Set(['name', 'description', 'externalId', 'lifecycle']);
@@ -247,7 +248,7 @@ export class LdifProcessor {
       const completion = Math.round((filled / mandatoryAttributes.length) * 1000) / 10;
 
       await tx.factSheet.update({ where: { id: factSheetId }, data: { completion } });
-    });
+    }, INTERACTIVE_TX_OPTIONS);
   }
 
   private async processRelations(

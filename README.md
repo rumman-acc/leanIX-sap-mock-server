@@ -60,7 +60,9 @@ If you don't have Redis yet, set `MOCK_RATE_LIMIT_ENABLED=false` and everything 
 docker compose -f docker/docker-compose.yml up -d postgres redis
 ```
 
-**Option B — native/managed services:** point `DATABASE_URL`/`REDIS_URL` in `.env` at whatever Postgres/Redis you already have running. This is how the reference implementation was actually developed and tested (native Postgres 18 on Windows + a managed Redis Cloud instance) — Docker Compose is provided for portability/CI but isn't the only supported path.
+**Option B — native/managed services:** point `DATABASE_URL`/`REDIS_URL` in `.env` at whatever Postgres/Redis you already have running. This repo has been tested against both a native local Postgres and a managed **Neon** cloud Postgres instance, plus a managed **Redis Cloud** instance — Docker Compose is provided for portability/CI but isn't the only supported path.
+
+If your Postgres provider uses a PgBouncer-based pooled endpoint (e.g. Neon's `-pooler` host), append `&pgbouncer=true` to `DATABASE_URL` — this tells Prisma to disable prepared-statement caching, which PgBouncer's transaction-pooling mode doesn't support. Expect noticeably higher latency per request against any remote database compared to local Postgres — that's normal network round-trip time, not a bug (see `docs/BUILD_STATUS.md` for the interactive-transaction-timeout fix this required).
 
 ## 4. Database migration + seed
 

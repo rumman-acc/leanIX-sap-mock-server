@@ -6,6 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { LeanIxException } from '../../common/exceptions/leanix.exception';
 import { MetaModelService } from '../../meta-model/meta-model.service';
 import { LeanIxConfig } from '../../config/leanix.config';
+import { INTERACTIVE_TX_OPTIONS } from '../../common/prisma/transaction-options';
 import { encodeCursor, decodeCursor } from './cursor.util';
 
 export const FACT_SHEET_INCLUDE = {
@@ -174,7 +175,7 @@ export class FactSheetService {
 
       await this.recalculateCompletionWithinTx(tx, created.id, type.id);
       return tx.factSheet.findUniqueOrThrow({ where: { id: created.id }, include: FACT_SHEET_INCLUDE });
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     this.events.emit('factsheet.event', {
       eventType: 'FACT_SHEET_CREATED',
@@ -211,7 +212,7 @@ export class FactSheetService {
         },
       });
       return result;
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     this.events.emit('factsheet.event', {
       eventType: 'FACT_SHEET_ARCHIVED',
@@ -234,7 +235,7 @@ export class FactSheetService {
       });
       await tx.trashBinEntry.deleteMany({ where: { factSheetId: id } });
       return result;
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     this.events.emit('factsheet.event', {
       eventType: 'FACT_SHEET_UPDATED',
@@ -258,7 +259,7 @@ export class FactSheetService {
       await tx.syncLog.updateMany({ where: { factSheetId: id }, data: { factSheetId: null } });
       await tx.trashBinEntry.deleteMany({ where: { factSheetId: id } });
       await tx.factSheet.delete({ where: { id } });
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     return { id, success: true };
   }

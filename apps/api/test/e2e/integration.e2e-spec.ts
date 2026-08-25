@@ -5,7 +5,7 @@ import { createHmac } from 'crypto';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 
-async function waitForSyncRunFinished(app: INestApplication, token: string, id: string, timeoutMs = 15000) {
+async function waitForSyncRunFinished(app: INestApplication, token: string, id: string, timeoutMs = 45000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const res = await request(app.getHttpServer())

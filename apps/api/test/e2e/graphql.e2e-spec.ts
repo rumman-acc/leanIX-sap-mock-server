@@ -111,7 +111,7 @@ describe('GraphQL API (e2e)', () => {
 
     expect(reviveRes.body.data.reviveFactSheet.factSheet.status).toBe('ACTIVE');
     expect(reviveRes.body.data.reviveFactSheet.factSheet.trashBin).toBe(false);
-  });
+  }, 120000); // 5 sequential mutations against a remote DB (Neon) — well over the 60s default
 
   it('supports GraphQL introspection', async () => {
     const res = await request(app.getHttpServer())

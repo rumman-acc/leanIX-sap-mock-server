@@ -4,6 +4,7 @@ import { JwtClaims, Patch, parseRelationPatchPath } from '@leanix-mock/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LeanIxException } from '../../common/exceptions/leanix.exception';
 import { MetaModelService } from '../../meta-model/meta-model.service';
+import { INTERACTIVE_TX_OPTIONS } from '../../common/prisma/transaction-options';
 import { FactSheetEvent, FactSheetService } from './fact-sheet.service';
 
 const NATIVE_FIELD_PATHS = new Set(['/name', '/description', '/externalId', '/lifecycle']);
@@ -46,7 +47,7 @@ export class FactSheetPatchService {
 
       await tx.factSheet.update({ where: { id }, data: { updatedBy: actor.sub } });
       await this.factSheetService.recalculateCompletionWithinTx(tx, id, before.typeId);
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     const after = await this.factSheetService.requireById(id);
 

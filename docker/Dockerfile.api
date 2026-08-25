@@ -1,0 +1,25 @@
+# docker/Dockerfile.api
+# Built with context = repo root (see docker-compose.yml `context: ..`) since this is an
+# npm-workspaces monorepo: apps/api depends on packages/shared and packages/prisma.
+
+FROM node:20-alpine AS base
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/mcp/package.json apps/mcp/package.json
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/prisma/package.json packages/prisma/package.json
+
+RUN npm install
+
+COPY packages/shared packages/shared
+COPY packages/prisma packages/prisma
+COPY apps/api apps/api
+
+RUN npm run build --workspace=packages/shared
+RUN npm run generate --workspace=packages/prisma
+
+EXPOSE 4000
+
+CMD ["npm", "run", "start:dev", "--workspace=apps/api"]

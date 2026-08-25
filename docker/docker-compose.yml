@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - '4000:4000'
+    env_file:
+      - ../.env.mock
+    environment:
+      - DATABASE_URL=postgresql://leanix:leanix@postgres:5432/leanix_mock?schema=public
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ../apps/api/src:/app/apps/api/src
+      - ../packages:/app/packages
+    command: sh -c "cd packages/prisma && npx prisma migrate deploy && cd /app/apps/api && npm run start:dev"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: leanix
+      POSTGRES_PASSWORD: leanix
+      POSTGRES_DB: leanix_mock
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U leanix -d leanix_mock']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

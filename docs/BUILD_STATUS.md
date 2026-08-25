@@ -2,7 +2,7 @@
 
 > **Ground rule:** This file is the single source of truth for build progress. Update it after every meaningful milestone (file group added, phase completed, test run, blocker hit). Any new conversation/session picking up this work MUST read this file first before touching code.
 
-Last updated: 2026-08-25 (session start)
+Last updated: 2026-08-25 — Phases 1-3 complete and live-verified, Phase 4 mostly done (Admin UI + perf pass intentionally skipped, see below)
 
 ---
 
@@ -75,25 +75,42 @@ _(add more rows as they come up)_
 
 **Scope decision:** `explain_architecture` returns structured dependency-graph JSON (root fact sheet + direct relations + optional second-hop relations), not AI-generated prose — the MCP server has no LLM of its own to call; the natural-language "explanation" is expected to come from whichever model is calling this tool. `get_reports` returns a small static list of report *definitions* the mock can compute (count-by-type, completion overview, trash-bin summary) since the spec doesn't define LeanIX's real reporting engine or any concrete report schema to replicate.
 
-### Phase 4 — Polish
-- [ ] Admin UI (best-effort)
-- [ ] GraphQL Playground/GraphiQL enabled
-- [ ] Full test suite pass
-- [ ] Documentation (README, API_REFERENCE, MIGRATION_GUIDE)
-- [ ] Sample data seed scripts
-- [ ] Performance pass
+### Phase 4 — Polish — mostly done
+- [ ] Admin UI — **skipped**. Spec marks it "if practical"; given everything else required, prioritized the API surface, tests, and docs instead. GraphQL Playground (below) covers interactive exploration.
+- [x] GraphQL Playground/GraphiQL enabled at `/services/pathfinder/v1/graphql` — live-verified (`curl -H "Accept: text/html"` returns the Apollo Sandbox landing page HTML)
+- [x] Full test suite pass — 17 unit + 9 e2e, all green against real Postgres + managed Redis
+- [x] Documentation — `README.md` (full walkthrough incl. curl examples for every surface), `docs/API_REFERENCE.md`, `docs/MIGRATION_GUIDE.md`
+- [x] Sample data seed scripts — `packages/prisma/seed.ts` (deterministic ids), `scripts/setup.sh`, `scripts/seed-workspace.sh`
+- [x] `docker/docker-compose.yml` + `docker/Dockerfile.api` + `docker/init-scripts/` + `Makefile` written per spec Appendix E/F — **not run end-to-end** (no Docker in this dev environment); schema/migrations/seed are identical to what *was* live-tested against native Postgres, so the only untested part is the container plumbing itself
+- [ ] Performance pass — not pursued; no performance issues observed at mock-data scale, and correctness/coverage was the priority given the scope of this task
+
+**Design note (documented, not a gap):** REST inputs (`IntegrationConfigurationInput`, `LdifUrlInput`, `WebhookConfig`) are validated with hand-written checks in their services rather than `class-validator`-decorated DTO classes, since their shapes are inherently dynamic/JSON-heavy (LDIF `data` is arbitrary key-value data by design). LDIF structural validation itself goes through a single shared, tested validator (`packages/shared/src/utils/validators.ts`) used by both the REST layer and unit tests.
 
 ## 3. What Actually Works Right Now (verified by running commands, not assumed)
 
-_(nothing yet — updated as each piece is verified)_
+All of the following were exercised live against the running server (native Postgres + managed Redis Cloud), not just unit-tested:
+
+- OAuth token issuance (valid + invalid credentials)
+- GraphQL: introspection, `allFactSheets` pagination, `allFactSheetTypes`, `search`, `factSheet(id)`
+- Fact sheet lifecycle: create → read → update (patch) → archive → revive → permanent delete (rejected outside trash bin, then succeeds once archived)
+- Duplicate `externalId` rejection within a type
+- Rate-limit headers on real responses (`X-RateLimit-*`), backed by the real Redis Cloud instance
+- LDIF sync run: multi-item batch with relations (Appendix B.2 style), partial failure handling (one bad fact sheet type → run `FAILED` with per-row logs, other items still processed and persisted), relation resolution via in-batch source-id map
+- Webhook registration → real HTTP delivery → HMAC-SHA256 signature independently recomputed and matched byte-for-byte
+- Webhook retry durability: confirmed a queued retry survived an API process restart (found while testing, not planned) and self-healed once the webhook was deleted
+- MCP server: spawned as a real subprocess via `StdioClientTransport`, `tools/list` returned all 8 tools, called `search_fact_sheets`, `get_meta_model`, `create_fact_sheet`, `update_fact_sheet`, `get_relations`, `explain_architecture`, and a not-found case on `get_fact_sheet`
+- `npm run build` (api, mcp, shared), 17 unit tests, 9 e2e tests — all green as of the latest commit
 
 ## 4. Known Limitations / Not Yet Verified
 
-- Redis-dependent behavior (rate limiting, BullMQ jobs, webhook retry timers) not yet live-tested — waiting on managed Redis URL from user.
-- Docker Compose stack not yet run end-to-end (no Docker locally).
+- `docker compose up` has not been run end-to-end — no Docker installed in this dev environment. The compose file/Dockerfile are written per spec but unverified as containers; the app/schema/migrations they wrap are the same ones verified natively above.
+- No Admin UI (spec: "if practical" — deprioritized in favor of required surface + tests + docs).
+- No dedicated performance/load testing pass.
 
-## 5. Next Steps
+## 5. Next Steps (for a future session)
 
-1. Scaffold monorepo (package.json, tsconfig, Prisma schema).
-2. Stand up NestJS app skeleton + Prisma against native Postgres.
-3. Implement Phase 1 modules incrementally, testing each against native Postgres.
+Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:
+
+1. If Docker is available: run `docker compose -f docker/docker-compose.yml up` and confirm the containerized stack matches the natively-verified behavior above; fix any container-specific issues (paths, env propagation).
+2. Optional: build a minimal Admin UI (React, per spec) if still desired.
+3. Optional: add a load/perf test pass if the consuming application needs specific throughput guarantees.

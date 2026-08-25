@@ -65,10 +65,15 @@ _(add more rows as they come up)_
 
 **Known simplification (documented, not a gap in required behavior):** LDIF processing doesn't manage `tags`/`subscriptions` (no example in the spec's LDIF payloads includes them) — only native fields, custom attributes, and relations. Sync-run background processing uses a plain async promise (not a BullMQ job) since spec only *suggests* BullMQ "where appropriate"; webhook delivery — where retry/backoff genuinely matters — does use BullMQ.
 
-### Phase 3 — MCP
-- [ ] MCP server scaffold (`apps/mcp`)
-- [ ] Tools: search_fact_sheets, get_fact_sheet, get_relations, create_fact_sheet, update_fact_sheet, get_meta_model, get_reports, explain_architecture
-- [ ] Shared auth w/ REST/GraphQL
+### Phase 3 — MCP — DONE, live-verified
+- [x] MCP server scaffold (`apps/mcp`, `@modelcontextprotocol/sdk` v1.30, stdio transport)
+- [x] All 8 tools implemented and live-verified via a real MCP `Client`+`StdioClientTransport` smoke test (spawned the actual server subprocess, called `tools/list` and each tool): `search_fact_sheets`, `get_fact_sheet` (incl. not-found → `isError: true`), `get_relations`, `create_fact_sheet`, `update_fact_sheet`, `get_meta_model`, `get_reports`, `explain_architecture`
+- [x] `workspace-summary` MCP resource (`leanix://workspace`) — bonus, not required by spec, gives per-type fact sheet counts
+- [x] Shared auth w/ REST/GraphQL — `LeanIxClient` does its own OAuth `client_credentials` exchange against the same `/services/mtm/v1/oauth2/token` endpoint and caches the JWT, so MCP tools ride the exact same auth path as any other consumer (per spec 13.3)
+
+**Real bug found and fixed here:** `zod`'s `z.enum([...])` in a tool's `inputSchema` triggered `TS2589: Type instantiation is excessively deep and possibly infinite` against `@modelcontextprotocol/sdk` v1.30's generic inference (on `search_fact_sheets`'s `status` field and `update_fact_sheet`'s patch `op` field). Fixed by using `z.string()` with a `.describe()` of the allowed values instead — GraphQL still validates the actual enum value server-side, so no runtime behavior is lost, just compile-time literal-union narrowing on that one field.
+
+**Scope decision:** `explain_architecture` returns structured dependency-graph JSON (root fact sheet + direct relations + optional second-hop relations), not AI-generated prose — the MCP server has no LLM of its own to call; the natural-language "explanation" is expected to come from whichever model is calling this tool. `get_reports` returns a small static list of report *definitions* the mock can compute (count-by-type, completion overview, trash-bin summary) since the spec doesn't define LeanIX's real reporting engine or any concrete report schema to replicate.
 
 ### Phase 4 — Polish
 - [ ] Admin UI (best-effort)

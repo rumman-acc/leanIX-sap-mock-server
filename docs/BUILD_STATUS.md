@@ -138,6 +138,16 @@ User pushed back on a real divergence from real LeanIX behavior: `AuthService.va
 - Updated `apps/api/test/e2e/*.spec.ts` (they'd been using arbitrary `dev-token-e2e`/`dev-token-int` style ids that only worked under the old prefix check), `README.md`, `docs/API_REFERENCE.md`, `docs/DEPLOYMENT.md` to describe exact-match behavior and the rotate-via-reseed flow.
 - All 26 tests (17 unit + 9 e2e) still pass.
 
+## 4d. Deep research + real-LeanIX auth fix (2026-08-26)
+
+User asked for deep research into real LeanIX behavior (no license available, so via public docs/SDKs/community + a real API client's source) to close the domain-only-swap gap. Full findings: `docs/RESEARCH_LEANIX_REAL_API.md`. Three real, sourced contract breaks found (not just simplifications): (1) OAuth uses HTTP Basic with a single API Token, not client_id/client_secret; (2) webhooks are a completely different subsystem (`/services/webhooks/v1/subscriptions`, `identifier`/`targetUrl`/`targetMethod`/`authorizationHeader`, no HMAC/events-array); (3) GraphQL filtering uses `facetFilters`, not `fieldFilters`. User chose to fix all three, auth first.
+
+**#1 Auth — DONE, live-verified.** `AuthController`/`AuthService` now support both: real form (`Authorization: Basic base64("apitoken:" + token)`, body just needs `grant_type`) validated via `AuthService.validateApiToken` (looks up `User.apiToken` only), and the mock-only `client_id`/`client_secret` body form kept for backward compat via `validateClientCredentials` (unchanged). Verified live: real Basic-auth form issues a token; wrong username/wrong token both correctly 401; legacy body form still works. 6 new unit tests (`auth.service.spec.ts`) + 4 new e2e tests (`auth.e2e-spec.ts`). Full suite: 36/36 passing (23 unit + 13 e2e).
+
+**#2 Webhooks — not yet started.** Biggest item — real contract is materially different, not just renamed fields (built on LeanIX's "Automations" feature). In progress next.
+
+**#3 GraphQL filtering (`facetFilters`) — not yet started.**
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

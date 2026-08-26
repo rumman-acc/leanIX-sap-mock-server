@@ -93,7 +93,16 @@ curl -X POST http://localhost:4000/services/mtm/v1/oauth2/token \
   --data "grant_type=client_credentials&client_id=dev-token-12345&client_secret=dev-secret-67890"
 ```
 
-This validates against an actual registered technical user's credential in the database — same as real LeanIX (an exact match, not a pattern) — so it behaves identically when you later point at a real workspace. The default seeded credential is `dev-token-12345`/`dev-secret-67890` (`workspaceRole: ADMIN`); set `LEANIX_API_TOKEN`/`LEANIX_API_TOKEN_SECRET` before running `npm run prisma:seed` to register your own, and use those same values in your custom application's config. The returned JWT is valid for 1 hour.
+Two supported forms — see `docs/RESEARCH_LEANIX_REAL_API.md` §1 for sourcing:
+
+- **Real LeanIX form (use this for your custom application)** — HTTP Basic auth, username literally `apitoken`, password = a single registered API Token:
+  ```bash
+  curl -u apitoken:dev-token-12345 --data grant_type=client_credentials \
+    http://localhost:4000/services/mtm/v1/oauth2/token
+  ```
+- **Mock-only convenience form** (kept for backward compatibility, not supported by real LeanIX) — `client_id`/`client_secret` in the body, as shown in the curl example above.
+
+Both validate against the same registered technical user (default `dev-token-12345`/`dev-secret-67890`, `workspaceRole: ADMIN`). Set `LEANIX_API_TOKEN`/`LEANIX_API_TOKEN_SECRET` before running `npm run prisma:seed` to register your own — the Basic-auth password only needs to match `LEANIX_API_TOKEN`. The returned JWT is valid for 1 hour.
 
 ## 6b. Explore the API
 

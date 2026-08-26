@@ -24,11 +24,23 @@ export class AuthService {
   ) {}
 
   /**
-   * Validates client_id/client_secret against an actual registered technical user's API
-   * token/secret in the database — the same shape of check real LeanIX performs (a technical
-   * user is created in the workspace with a specific token/secret pair; only that exact pair
-   * authenticates). No prefix or pattern shortcuts: whatever credential is seeded/configured is
-   * the only thing that works, same as it would be against a real workspace.
+   * Real LeanIX auth: HTTP Basic with username literally "apitoken" and password = a single
+   * API Token generated for a technical user (no client_secret concept exists in the real
+   * product — see docs/RESEARCH_LEANIX_REAL_API.md §1). This is the path a custom application
+   * should actually be built against for a true domain-only swap.
+   */
+  async validateApiToken(apiToken: string): Promise<User | null> {
+    if (!apiToken) {
+      return null;
+    }
+    return this.prisma.user.findFirst({ where: { apiToken } });
+  }
+
+  /**
+   * Mock-only convenience path (kept for backward compatibility with anything already built
+   * against this mock): client_id/client_secret as form body fields, validated against the
+   * same technical user's apiToken/apiTokenSecret. Real LeanIX does not support this — see
+   * validateApiToken() for the contract a custom application should actually rely on.
    */
   async validateClientCredentials(clientId: string, clientSecret: string): Promise<User | null> {
     if (!clientId || !clientSecret) {

@@ -10,10 +10,14 @@ Base URL (local): `http://localhost:4000`
 
 Public (no auth required). `Content-Type: application/x-www-form-urlencoded`.
 
+**Real LeanIX form** (use this — see `docs/RESEARCH_LEANIX_REAL_API.md` §1): HTTP Basic auth header, username `apitoken`, password = a registered API Token (seeded from `LEANIX_API_TOKEN`, default `dev-token-12345`); body only needs `grant_type=client_credentials`.
+
+**Mock-only convenience form** (not supported by real LeanIX, kept for backward compatibility):
+
 | Field | Required | Notes |
 |---|---|---|
 | `grant_type` | yes | must be `client_credentials` |
-| `client_id` | yes | must exactly match a registered technical user's `apiToken` (seeded from `LEANIX_API_TOKEN`, default `dev-token-12345`) |
+| `client_id` | yes | must exactly match a registered technical user's `apiToken` (default `dev-token-12345`) |
 | `client_secret` | yes | must exactly match that same user's `apiTokenSecret` (seeded from `LEANIX_API_TOKEN_SECRET`, default `dev-secret-67890`) |
 
 Success (200):

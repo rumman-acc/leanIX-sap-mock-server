@@ -113,7 +113,9 @@ async function seedMetaModel() {
           const existing = await prisma.allowedValue.findFirst({
             where: { attributeId: attrId, value: av.value },
           });
-          if (!existing) {
+          if (existing) {
+            await prisma.allowedValue.update({ where: { id: existing.id }, data: { label: av.label, color: av.color } });
+          } else {
             await prisma.allowedValue.create({
               data: {
                 id: `av-${type.technicalKey}-${attr.technicalKey}-${av.value}`,
@@ -125,6 +127,11 @@ async function seedMetaModel() {
             });
           }
         }
+        // Remove stale allowed values no longer in the definition (e.g. after correcting
+        // businessCriticality's values against real LeanIX — see docs/RESEARCH_LEANIX_REAL_API.md §5).
+        await prisma.allowedValue.deleteMany({
+          where: { attributeId: attrId, value: { notIn: attr.allowedValues.map((av) => av.value) } },
+        });
       }
     }
   }

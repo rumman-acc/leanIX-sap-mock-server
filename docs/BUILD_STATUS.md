@@ -169,6 +169,17 @@ User confirmed continuing with the lower-confidence §4 items. Additional resear
 
 Live-verified all four via curl against the running server + Neon; 8 new unit tests. Full suite: 45/45 (31 unit + 14 e2e).
 
+## 4f. Cross-checked against LeanIX's own public example repo (2026-08-26)
+
+User asked to pull concrete examples from `github.com/leanix-public/integration-api-examples` (LeanIX's own official example repo — real `config.json`/`input.json` files) to further validate the Integration API work. Full findings: `docs/RESEARCH_LEANIX_REAL_API.md` §5.
+
+- **`businessCriticality` allowed values — HIGH confidence, FIXED.** Original placeholders were wrong. Real values (from an official value-mapping table in a real workshop README): `missionCritical`, `businessCritical`, `businessOperational`, `administrativeService`. Updated `default-meta-model.ts`; also fixed `packages/prisma/seed.ts` to delete stale allowed values no longer in the definition on reseed (previously only ever additive). Live-verified via `factSheetType(technicalKey: "Application")` query after reseeding Neon.
+- **`functionalSuitability`/`technicalSuitability` — deliberately left as placeholders.** Candidate real values surfaced but only from low-confidence blog-post prose, not a real config file — didn't want to swap one unverified guess for another.
+- **Real `inboundFactSheet` processor/`config.json` shape confirmed** (uses `expr`-only fields, `filter`, `content.id` matching, array-per-field `updates`) — materially different from the original spec's example, but **not implemented**: this mock stores `processors` as opaque JSON and doesn't interpret it; actual sync processing uses simpler 1:1 field mapping that happens to produce identical results for the real example's common case. Building a real expression-evaluation engine was judged out of proportion to everything else fixed this session. Swagger docs updated to show the *real* shape for accuracy even though unused.
+- Added `customFields?: Record<string, unknown>` to the `LDIF` type (confirmed present in real payloads, accepted-and-ignored, no confirmed semantics to replicate).
+
+Full suite still 45/45 after these changes.
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

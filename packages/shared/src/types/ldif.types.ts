@@ -13,6 +13,8 @@ export interface LDIF {
   processingMode: 'partial' | 'full';
   description?: string;
   content: LdifContentItem[];
+  /** Present in real LeanIX LDIF payloads (github.com/leanix-public/integration-api-examples); accepted and ignored — no confirmed real semantics to replicate. */
+  customFields?: Record<string, unknown>;
 }
 
 export interface LdifUrlInput {

@@ -60,11 +60,15 @@ const SUITABILITY_VALUES: DefaultAllowedValue[] = [
   { value: 'perfect', label: 'Perfect', color: '#81C784' },
 ];
 
+// Sourced directly from a real LeanIX customer workspace's Integration API config example
+// (github.com/leanix-public/integration-api-examples, "Update-BusinessCriticality" task README's
+// external-value-to-LeanIX-value mapping table) — HIGH confidence, unlike the SUITABILITY_VALUES
+// above which stay illustrative placeholders per docs/RESEARCH_LEANIX_REAL_API.md §5.
 const BUSINESS_CRITICALITY_VALUES: DefaultAllowedValue[] = [
-  { value: 'notApplicable', label: 'Not applicable', color: '#CCCCCC' },
-  { value: 'notCritical', label: 'Not critical', color: '#81C784' },
-  { value: 'standard', label: 'Standard', color: '#FFD54F' },
-  { value: 'businessCritical', label: 'Business critical', color: '#E57373' },
+  { value: 'administrativeService', label: 'Administrative Service', color: '#CCCCCC' },
+  { value: 'businessOperational', label: 'Business Operational', color: '#81C784' },
+  { value: 'businessCritical', label: 'Business Critical', color: '#FFD54F' },
+  { value: 'missionCritical', label: 'Mission Critical', color: '#E57373' },
 ];
 
 const baseAttributes = (): DefaultAttribute[] => [

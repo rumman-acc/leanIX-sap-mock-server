@@ -72,6 +72,20 @@ Plus a facet-discovery query that has no equivalent in this mock at all:
 
 ---
 
+## 5. Cross-checked against LeanIX's own official example repo (2026-08-26)
+
+Source: `github.com/leanix-public/integration-api-examples` (LeanIX's own public GitHub org, real `config.json`/`input.json` files used in their integration workshop) — the highest-confidence source available short of a real license, since these are files LeanIX itself publishes as working examples.
+
+- **`businessCriticality` allowed values — HIGH confidence, FIXED.** The placeholder values in §4/original spec-guessing were wrong. Real values, straight from an official value-mapping table in the workshop's README: `missionCritical`, `businessCritical`, `businessOperational`, `administrativeService`. Updated `packages/shared/src/constants/default-meta-model.ts`; `packages/prisma/seed.ts` now also deletes stale allowed values no longer in the definition on reseed (it previously only ever added, never cleaned up).
+- **`functionalSuitability`/`technicalSuitability` — still placeholders, deliberately not changed.** A search surfaced candidate values (`unreasonable`/`insufficient`/`appropriate`/`perfect` and `inappropriate`/`unreasonable`/`adequate`/`fullyAppropriate`) but only from blog-post prose describing the *concept*, not a real config file like the businessCriticality one — LOW confidence, and the SDK's own docs already say these are workspace-specific and shouldn't be assumed (see §4). Left as illustrative placeholders rather than replacing correct-looking-but-unverified guesses with different-looking-but-still-unverified guesses.
+- **Real `inboundFactSheet` processor/config.json shape confirmed, materially different from the original spec's example** — but NOT implemented, a deliberate scope decision:
+  - Real: `identifier.external.id.expr = "${content.id}"` (matches on the LDIF content item's own `id`, not a `data.externalId` field), `identifier.external.type.expr = "externalId"` (a literal constant naming the identifier *type*, not a template — this is the same `"type"` value that shows up in the structured `externalId` object from §4: `{"type":"ExternalId","externalId":"..."}`) — no `key`/`value` pair split like the original spec assumed, just `expr`.
+  - Real: `filter: { type: "Application" }` — scopes which content items a processor applies to; not present in our config storage at all.
+  - Real: `updates: [{ key: { expr: "name" }, values: [{ expr: "${data.name}" }] }]` — one array entry per target field, `key.expr` is the literal field name, `values` is an array of expressions (supports value-mapping/fallback chains) — structurally different from the original spec's nested `key`+`values[].key` shape.
+  - Real: `logLevel: "warning"` (lowercase), not `"WARNING"`.
+  - **This mock stores `processors` as opaque JSON and never interprets it** — actual sync-run processing (`ldif.processor.ts`) does its own simpler 1:1 `data.<key>` → fact sheet field mapping, which happens to produce identical results to the real processor's `${data.name}` → `name` expression for the common case (verified: the real `BasicConnector-CreateApplications_and_relations` example's `updates` block does nothing more than what our direct mapping already does). Building a real expression-evaluation engine (parsing `${content.id}`, `${data.x}`, value-mapping tables) to properly interpret arbitrary processor configs is a materially bigger feature than anything else fixed this session — not attempted. The Swagger example for `POST .../configurations` now shows the *real* shape (for accuracy/documentation), even though this mock doesn't act on it.
+  - Also confirmed real LDIF payloads include a top-level `customFields: {}` object not in the original spec — added to the `LDIF` type as an accepted-and-ignored passthrough field (no confirmed real semantics to replicate).
+
 ## What wasn't re-verified in this pass (out of scope / lower priority given time)
 
 - Full real GraphQL SDL (types, all fields) — not obtainable without workspace access (GraphiQL requires admin login to a real workspace); relied on quoted example queries instead of the full schema.

@@ -71,10 +71,28 @@ input UserInput {
 }
 
 input FilterInput {
+  # Real LeanIX form — matches the real facet-based filter model exactly (see
+  # docs/RESEARCH_LEANIX_REAL_API.md §3). Well-known facetKeys: "FactSheetTypes" (type
+  # technicalKey), "_TAGS_" (tag ids); any other key is looked up as a custom attribute's
+  # technicalKey.
+  facetFilters: [FacetFilterInput]
+
+  # --- Mock-only convenience form (kept for backward compatibility; not in real LeanIX) ---
   factSheetType: String
   status: FactSheetStatus
   fieldFilters: [FieldFilterInput]
   relationFilters: [RelationFilterInput]
+}
+
+input FacetFilterInput {
+  facetKey: String!
+  operator: FacetOperator = OR
+  keys: [String]!
+}
+
+enum FacetOperator {
+  OR
+  AND
 }
 
 input FieldFilterInput {
@@ -252,6 +270,23 @@ type FactSheetConnection {
   totalCount: Int!
   edges: [FactSheetEdge!]!
   pageInfo: PageInfo!
+  # Real LeanIX facet-discovery field (docs/RESEARCH_LEANIX_REAL_API.md §3) — lets a client
+  # discover valid facetKey/keys combinations for FilterInput.facetFilters.
+  filterOptions: FilterOptions!
+}
+
+type FilterOptions {
+  facets: [Facet!]!
+}
+
+type Facet {
+  facetKey: String!
+  results: [FacetResultItem!]!
+}
+
+type FacetResultItem {
+  name: String!
+  key: String!
 }
 
 type FactSheetEdge {

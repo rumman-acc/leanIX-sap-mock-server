@@ -60,6 +60,30 @@ describe('GraphQL API (e2e)', () => {
     expect(res.headers['x-ratelimit-limit']).toBeDefined();
   });
 
+  it('filters via real LeanIX facetFilters and exposes facet discovery (filterOptions)', async () => {
+    const discoveryRes = await request(app.getHttpServer())
+      .post('/services/pathfinder/v1/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ query: `{ allFactSheets { filterOptions { facets { facetKey results { name key } } } } }` });
+
+    expect(discoveryRes.status).toBe(200);
+    const facets = discoveryRes.body.data.allFactSheets.filterOptions.facets;
+    expect(facets.find((f: { facetKey: string }) => f.facetKey === 'FactSheetTypes')).toBeDefined();
+    expect(facets.find((f: { facetKey: string }) => f.facetKey === '_TAGS_')).toBeDefined();
+
+    const filterRes = await request(app.getHttpServer())
+      .post('/services/pathfinder/v1/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        query: `query { allFactSheets(filter: { facetFilters: [{ facetKey: "FactSheetTypes", operator: OR, keys: ["ITComponent"] }] }) { totalCount edges { node { type } } } }`,
+      });
+
+    expect(filterRes.status).toBe(200);
+    const nodes = filterRes.body.data.allFactSheets.edges.map((e: { node: { type: string } }) => e.node.type);
+    expect(nodes.length).toBeGreaterThan(0);
+    expect(nodes.every((t: string) => t === 'ITComponent')).toBe(true);
+  });
+
   it('creates, reads, updates, archives and revives a fact sheet', async () => {
     const externalId = `E2E-${Date.now()}`;
 

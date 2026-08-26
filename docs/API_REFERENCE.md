@@ -50,6 +50,14 @@ All other endpoints require `Authorization: Bearer <access_token>`.
 
 **Patch paths:** `/name`, `/description`, `/externalId`, `/lifecycle` (replace only); `/tags` (add), `/tags/{tagId}` (remove); `/{relationTypeKey}` (add, value = target fact sheet id), `/{relationTypeKey}/{relationId}` (replace/remove); `/{customAttributeKey}` (replace/remove) for type-specific fields like `functionalSuitability`.
 
+**Filtering — real LeanIX form** (matches exactly, see `docs/RESEARCH_LEANIX_REAL_API.md` §3):
+```graphql
+allFactSheets(filter: { facetFilters: [{ facetKey: "FactSheetTypes", operator: OR, keys: ["Application"] }] }) { totalCount edges { node { id name } } }
+```
+Well-known `facetKey`s: `"FactSheetTypes"` (type technicalKey), `"_TAGS_"` (tag ids); any other key is looked up as a custom attribute's technicalKey. `operator` is `OR` (default, at least one key matches) or `AND` (all keys must match — only really satisfiable for multi-valued facets like `_TAGS_`). Discover valid facetKey/keys combinations via `allFactSheets { filterOptions { facets { facetKey results { name key } } } } }`.
+
+**Mock-only convenience filter form** (kept for backward compatibility; not in real LeanIX): `filter: { factSheetType, status, fieldFilters: [{key, values, operator}], relationFilters }` — both forms can be combined in the same query (ANDed together).
+
 ## REST
 
 | Method | Path | Role | Notes |

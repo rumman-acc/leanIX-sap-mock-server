@@ -154,7 +154,9 @@ User asked for deep research into real LeanIX behavior (no license available, so
 - Prisma migration `20260826073831_real_webhook_contract` applied to Neon (webhooks/webhook_deliveries tables were empty, so no data-loss concern).
 - Live-verified end-to-end: register → GET → trigger via `createFactSheet` → delivery received with correct `Authorization` header (real) and correct HMAC in `X-LeanIX-Signature` (mock bonus) → DELETE returns the deleted subscription wrapped in `{status, data}`. Full suite: 36/36 (23 unit + 13 e2e).
 
-**#3 GraphQL filtering (`facetFilters`) — not yet started.**
+**#3 GraphQL filtering (`facetFilters`) — DONE, live-verified.** Added `FilterInput.facetFilters: [FacetFilterInput]` (`facetKey`, `operator: OR|AND`, `keys: [String]`) matching real LeanIX exactly, alongside the existing mock-only `factSheetType`/`status`/`fieldFilters`/`relationFilters` (both forms combine via AND if used together — same "support both" pattern as auth). Well-known facetKeys implemented: `"FactSheetTypes"` (→ `typeId`), `"_TAGS_"` (→ tag assignment membership, OR/AND both implemented); any other key falls back to a custom-attribute technicalKey lookup. Added the real facet-discovery query `allFactSheets { filterOptions { facets { facetKey results { name key } } } } }` (`FactSheetService.getFilterOptions()` + a new `FactSheetConnectionResolver`), returning live fact-sheet-type and tag facets. Live-verified: facet discovery lists `FactSheetTypes`/`_TAGS_`; `facetFilters: [{facetKey:"FactSheetTypes", keys:["ITComponent"]}]` correctly returns only ITComponents; a `_TAGS_` filter correctly returns only the one tagged fact sheet; legacy `factSheetType` filter still works unchanged. Full suite: 37/37 (23 unit + 14 e2e).
+
+**All three research-driven fixes are now complete.** `docs/RESEARCH_LEANIX_REAL_API.md` §1-3 findings are all addressed; §4 (smaller corrections: patch paths for lifecycle/externalId/qualitySeal, possible `lxState` field) and the "not re-verified" section remain open for a future pass if desired.
 
 ## 5. Next Steps (for a future session)
 

@@ -97,6 +97,21 @@ export class FactSheetService {
     };
   }
 
+  /** Real LeanIX facet-discovery — lets a client learn valid facetKey/keys combinations. */
+  async getFilterOptions() {
+    const [types, tags] = await Promise.all([
+      this.prisma.factSheetType.findMany({ where: { enabled: true }, orderBy: { technicalKey: 'asc' } }),
+      this.prisma.tag.findMany({ orderBy: { name: 'asc' } }),
+    ]);
+
+    return {
+      facets: [
+        { facetKey: 'FactSheetTypes', results: types.map((t) => ({ name: t.label, key: t.technicalKey })) },
+        { facetKey: '_TAGS_', results: tags.map((t) => ({ name: t.name, key: t.id })) },
+      ],
+    };
+  }
+
   async search(query: string, first?: number, after?: string) {
     const take = Math.min(first ?? 50, 500);
     const cursorId = after ? decodeCursor(after) : undefined;
@@ -385,6 +400,14 @@ export class FactSheetService {
 
     if (!filter) return where;
 
+    if (filter.facetFilters?.length) {
+      const AND: Record<string, unknown>[] = [];
+      for (const ff of filter.facetFilters) {
+        AND.push(await this.facetFilterToWhere(ff));
+      }
+      where.AND = [...((where.AND as Record<string, unknown>[]) ?? []), ...AND];
+    }
+
     if (filter.status) {
       where.status = filter.status;
       if (filter.status === 'ARCHIVED') {
@@ -434,6 +457,37 @@ export class FactSheetService {
     }
 
     return where;
+  }
+
+  /**
+   * Real LeanIX's facet filter primitive (docs/RESEARCH_LEANIX_REAL_API.md §3). Well-known
+   * facetKeys: "FactSheetTypes" (type technicalKey), "_TAGS_" (tag ids); anything else is
+   * looked up as a custom attribute's technicalKey. `AND` with more than one key is only
+   * satisfiable for multi-valued facets (currently just "_TAGS_") — for single-valued facets
+   * (a fact sheet has exactly one type / one value for a given attribute) it degrades to "must
+   * equal every key", which is a no-op unless all keys are identical.
+   */
+  private async facetFilterToWhere(ff: { facetKey: string; operator?: string; keys: string[] }): Promise<Record<string, unknown>> {
+    const isAnd = ff.operator === 'AND';
+
+    if (ff.facetKey === 'FactSheetTypes') {
+      const types = await Promise.all(ff.keys.map((key) => this.metaModel.findTypeByKey(key)));
+      const typeIds = types.filter((t): t is NonNullable<typeof t> => Boolean(t)).map((t) => t.id);
+      return isAnd && typeIds.length > 1 ? { id: '__never_matches__' } : { typeId: { in: typeIds } };
+    }
+
+    if (ff.facetKey === '_TAGS_') {
+      if (isAnd) {
+        return { AND: ff.keys.map((tagId) => ({ tags: { some: { tagId } } })) };
+      }
+      return { tags: { some: { tagId: { in: ff.keys } } } };
+    }
+
+    // Fall back: treat facetKey as a custom attribute's technicalKey.
+    const clauses = ff.keys.map((key) => ({
+      attributes: { some: { attribute: { technicalKey: ff.facetKey }, value: { equals: key } } },
+    }));
+    return isAnd ? { AND: clauses } : { OR: clauses };
   }
 
   private fieldFilterToWhere(ff: { key: string; values: string[]; operator?: string }): Record<string, unknown> {

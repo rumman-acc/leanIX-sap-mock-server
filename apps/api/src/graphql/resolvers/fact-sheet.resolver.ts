@@ -119,6 +119,16 @@ export class FactSheetResolver {
   }
 }
 
+@Resolver('FactSheetConnection')
+export class FactSheetConnectionResolver {
+  constructor(private readonly factSheetService: FactSheetService) {}
+
+  @ResolveField('filterOptions')
+  filterOptions() {
+    return this.factSheetService.getFilterOptions();
+  }
+}
+
 @Resolver('Relation')
 export class RelationFieldResolver {
   @ResolveField('relationType')

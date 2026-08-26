@@ -7,7 +7,12 @@ import { join } from 'path';
 import { MetaModelModule } from '../meta-model/meta-model.module';
 import { FactSheetService } from './services/fact-sheet.service';
 import { FactSheetPatchService } from './services/fact-sheet-patch.service';
-import { FactSheetResolver, RelationFieldResolver, RelationTypeFieldResolver } from './resolvers/fact-sheet.resolver';
+import {
+  FactSheetResolver,
+  FactSheetConnectionResolver,
+  RelationFieldResolver,
+  RelationTypeFieldResolver,
+} from './resolvers/fact-sheet.resolver';
 import { MetaModelResolver } from './resolvers/meta-model.resolver';
 import { SearchResolver } from './resolvers/search.resolver';
 import { formatGraphQLError } from './graphql-error-formatter';
@@ -33,6 +38,7 @@ import { formatGraphQLError } from './graphql-error-formatter';
     FactSheetService,
     FactSheetPatchService,
     FactSheetResolver,
+    FactSheetConnectionResolver,
     RelationFieldResolver,
     RelationTypeFieldResolver,
     MetaModelResolver,

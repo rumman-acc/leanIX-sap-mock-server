@@ -24,7 +24,17 @@ export interface RelationFilterInput {
   targetId?: string;
 }
 
+/** Real LeanIX's facet-based filter primitive — see docs/RESEARCH_LEANIX_REAL_API.md §3. */
+export interface FacetFilterInput {
+  facetKey: string;
+  operator?: 'OR' | 'AND';
+  keys: string[];
+}
+
 export interface FilterInput {
+  /** Real LeanIX form. Well-known facetKeys: "FactSheetTypes", "_TAGS_"; else a custom attribute technicalKey. */
+  facetFilters?: FacetFilterInput[];
+  // --- Mock-only convenience form (kept for backward compatibility; not in real LeanIX) ---
   factSheetType?: string;
   status?: 'ACTIVE' | 'ARCHIVED';
   fieldFilters?: FieldFilterInput[];

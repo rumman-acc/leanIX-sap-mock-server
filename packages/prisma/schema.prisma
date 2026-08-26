@@ -303,13 +303,30 @@ model SyncLog {
 
 // --- Webhooks ----------------------------------------------
 
+// Field names/shape match real LeanIX's webhook subscription API exactly (source: the real
+// terraform-provider-leanix client, see docs/RESEARCH_LEANIX_REAL_API.md §2) — NOT the
+// url/events/secret shape the original spec assumed. `events`/`secret` below are a documented
+// mock-only convenience extension (real LeanIX ties triggers to a separately configured
+// "Automation" this mock doesn't implement, and authenticates deliveries via
+// `authorizationHeader`, not payload signing).
 model Webhook {
-  id              String   @id @default(cuid())
-  url             String
-  events          String[]
-  secret          String?
-  active          Boolean  @default(true)
-  workspaceId     String   @map("workspace_id")
+  id                  String   @id @default(cuid())
+  identifier          String
+  targetUrl           String   @map("target_url")
+  targetMethod        String   @default("POST") @map("target_method")
+  authorizationHeader String?  @map("authorization_header")
+  callback            String?
+  tagSets             Json?    @map("tag_sets")
+  workspaceConstraint String   @default("ANY") @map("workspace_constraint")
+  payloadMode         String   @default("DEFAULT") @map("payload_mode")
+  deliveryType        String   @default("PUSH") @map("delivery_type")
+  ignoreError         Boolean  @default(true) @map("ignore_error")
+  active              Boolean  @default(true)
+  workspaceId         String   @map("workspace_id")
+
+  // --- mock-only convenience (not part of real LeanIX's contract) ---
+  events              String[] @default([])
+  secret              String?
 
   deliveries      WebhookDelivery[]
 

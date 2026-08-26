@@ -144,7 +144,15 @@ User asked for deep research into real LeanIX behavior (no license available, so
 
 **#1 Auth — DONE, live-verified.** `AuthController`/`AuthService` now support both: real form (`Authorization: Basic base64("apitoken:" + token)`, body just needs `grant_type`) validated via `AuthService.validateApiToken` (looks up `User.apiToken` only), and the mock-only `client_id`/`client_secret` body form kept for backward compat via `validateClientCredentials` (unchanged). Verified live: real Basic-auth form issues a token; wrong username/wrong token both correctly 401; legacy body form still works. 6 new unit tests (`auth.service.spec.ts`) + 4 new e2e tests (`auth.e2e-spec.ts`). Full suite: 36/36 passing (23 unit + 13 e2e).
 
-**#2 Webhooks — not yet started.** Biggest item — real contract is materially different, not just renamed fields (built on LeanIX's "Automations" feature). In progress next.
+**#2 Webhooks — DONE, live-verified.** Full rebuild to match real LeanIX's contract exactly, sourced by reading the actual Go source of `codecentric/terraform-provider-leanix`'s HTTP client (`leanix_client.go`/`webhook_subscription.go`) directly off GitHub — the highest-confidence source available without a real license:
+- Path: `/services/webhooks/v1/subscriptions` (was `/services/webhook/v1/webhooks`), full CRUD (`POST`/`GET`/`GET :id`/`PUT :id`/`DELETE :id` — was create/list/delete only)
+- Request/response fields renamed to match exactly: `identifier`, `targetUrl`, `targetMethod`, `authorizationHeader`, `callback`, `tagSets` (`string[][]`, OR-within/AND-across against the fact sheet's tag ids — implemented), `workspaceConstraint`, `payloadMode`, `deliveryType` (always `"PUSH"`), `ignoreError`, `active`
+- All responses wrapped `{ status: "OK", data: {...} }`, matching the real `WebhookSubscriptionResponse{Status, Subscription}` struct
+- Delivery auth switched from HMAC payload-signing to sending `authorizationHeader`'s value verbatim as `Authorization` — the real mechanism. HMAC signing kept as an opt-in mock-only extra (only fires if `secret` is provided) since it's genuinely useful for testing signature-verification code, and doesn't conflict with the real contract.
+- `events: string[]` kept as a **documented mock-only extension** — real LeanIX ties triggers to a separately-configured "Automation" (a whole other feature this mock doesn't implement, unverifiable without a license); omitting `events` fires on every fact-sheet event as the closest practical analog.
+- `ignoreError` (default `true`, matching real LeanIX's default) now gates retries: `true` → single best-effort delivery attempt (no retry), `false` → this mock's existing retry schedule. This specific mapping is an inferred interpretation of the field name, not independently confirmed — flagged as such in code comments.
+- Prisma migration `20260826073831_real_webhook_contract` applied to Neon (webhooks/webhook_deliveries tables were empty, so no data-loss concern).
+- Live-verified end-to-end: register → GET → trigger via `createFactSheet` → delivery received with correct `Authorization` header (real) and correct HMAC in `X-LeanIX-Signature` (mock bonus) → DELETE returns the deleted subscription wrapped in `{status, data}`. Full suite: 36/36 (23 unit + 13 e2e).
 
 **#3 GraphQL filtering (`facetFilters`) — not yet started.**
 

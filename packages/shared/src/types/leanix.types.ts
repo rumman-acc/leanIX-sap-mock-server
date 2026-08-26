@@ -85,9 +85,25 @@ export interface LifecycleInput {
   phases: LifecyclePhaseInput[];
 }
 
+/**
+ * Matches real LeanIX's webhook subscription request body exactly — see
+ * docs/RESEARCH_LEANIX_REAL_API.md §2 (sourced from the real terraform-provider-leanix client).
+ * `events`/`secret` are a mock-only convenience extension, not part of the real contract.
+ */
 export interface WebhookConfig {
-  url: string;
-  events: string[];
+  identifier: string;
+  targetUrl: string;
+  targetMethod?: string;
+  authorizationHeader?: string;
+  callback?: string;
+  /** Array of OR-groups; a fact sheet must have at least one tag id from EVERY group (AND across groups). */
+  tagSets?: string[][];
+  workspaceConstraint?: string;
+  payloadMode?: string;
+  active?: boolean;
+  ignoreError?: boolean;
+  // --- mock-only convenience (not part of real LeanIX's contract) ---
+  events?: string[];
   secret?: string;
 }
 

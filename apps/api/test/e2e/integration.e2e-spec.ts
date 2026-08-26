@@ -109,15 +109,31 @@ describe('Integration API + Webhooks (e2e)', () => {
     expect(readRes.body.data.allFactSheets.edges[0].node.name).toBe('LDIF E2E App');
   });
 
-  it('registers a webhook and delivers a signed FACT_SHEET_CREATED payload on fact sheet creation', async () => {
+  it('registers a webhook subscription (real LeanIX contract: /services/webhooks/v1/subscriptions) and delivers on fact sheet creation', async () => {
     const secret = 'e2e-webhook-secret';
+    const authorizationHeader = 'Bearer static-integration-token';
     const registerRes = await request(app.getHttpServer())
-      .post('/services/webhook/v1/webhooks')
+      .post('/services/webhooks/v1/subscriptions')
       .set('Authorization', `Bearer ${token}`)
-      .send({ url: `http://localhost:${RECEIVER_PORT}`, events: ['FACT_SHEET_CREATED'], secret });
+      .send({
+        identifier: 'e2e test subscription',
+        targetUrl: `http://localhost:${RECEIVER_PORT}`,
+        authorizationHeader,
+        events: ['FACT_SHEET_CREATED'], // mock-only convenience filter
+        secret, // mock-only convenience HMAC signing
+      });
 
     expect(registerRes.status).toBe(201);
-    expect(registerRes.body.active).toBe(true);
+    expect(registerRes.body.status).toBe('OK');
+    expect(registerRes.body.data.active).toBe(true);
+    expect(registerRes.body.data.deliveryType).toBe('PUSH');
+    const webhookId = registerRes.body.data.id;
+
+    const getRes = await request(app.getHttpServer())
+      .get(`/services/webhooks/v1/subscriptions/${webhookId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.targetUrl).toBe(`http://localhost:${RECEIVER_PORT}`);
 
     await request(app.getHttpServer())
       .post('/services/pathfinder/v1/graphql')
@@ -134,13 +150,17 @@ describe('Integration API + Webhooks (e2e)', () => {
 
     expect(received.length).toBeGreaterThan(0);
     const delivery = received[received.length - 1];
+    // Real LeanIX contract: authorizationHeader sent verbatim, no payload signing.
+    expect(delivery.headers['authorization']).toBe(authorizationHeader);
+    // Mock-only bonus headers, kept for backward compatibility.
     expect(delivery.headers['x-leanix-event']).toBe('FACT_SHEET_CREATED');
     const expectedSignature = `sha256=${createHmac('sha256', secret).update(delivery.body).digest('hex')}`;
     expect(delivery.headers['x-leanix-signature']).toBe(expectedSignature);
 
-    await request(app.getHttpServer())
-      .delete(`/services/webhook/v1/webhooks/${registerRes.body.id}`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
+    const deleteRes = await request(app.getHttpServer())
+      .delete(`/services/webhooks/v1/subscriptions/${webhookId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.data.id).toBe(webhookId);
   });
 });

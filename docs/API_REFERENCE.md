@@ -61,9 +61,11 @@ All other endpoints require `Authorization: Bearer <access_token>`.
 | POST | `/services/integration-api/v1/synchronizationRuns/withUrlInput` | ADMIN/MEMBER | fetches LDIF content from `url` |
 | GET | `/services/integration-api/v1/synchronizationRuns/{id}` | ADMIN/MEMBER | status + counts |
 | GET | `/services/integration-api/v1/synchronizationRuns/{id}/logs` | ADMIN/MEMBER | row-level sync logs (not in spec, added for debuggability) |
-| POST | `/services/webhook/v1/webhooks` | ADMIN/MEMBER | register |
-| GET | `/services/webhook/v1/webhooks` | ADMIN/MEMBER | list |
-| DELETE | `/services/webhook/v1/webhooks/{id}` | ADMIN/MEMBER | delete |
+| POST | `/services/webhooks/v1/subscriptions` | ADMIN/MEMBER | register (real LeanIX path/contract — see below) |
+| GET | `/services/webhooks/v1/subscriptions` | ADMIN/MEMBER | list |
+| GET | `/services/webhooks/v1/subscriptions/{id}` | ADMIN/MEMBER | get one |
+| PUT | `/services/webhooks/v1/subscriptions/{id}` | ADMIN/MEMBER | update |
+| DELETE | `/services/webhooks/v1/subscriptions/{id}` | ADMIN/MEMBER | delete |
 
 ## Error codes
 
@@ -89,8 +91,13 @@ Every authenticated response includes `X-RateLimit-User-Limit` (1800/min), `X-Ra
 
 ## Webhooks
 
-Events: `FACT_SHEET_CREATED`, `FACT_SHEET_UPDATED`, `FACT_SHEET_ARCHIVED`, `RELATION_CREATED`, `FACT_SHEET_FIELD_UPDATED`. No `FACT_SHEET_DELETED` (LeanIX archives, then auto-deletes after the trash-bin retention window — no delete event is ever fired).
+**Request body** (matches real LeanIX's `WebhookSubscription` contract exactly — see `docs/RESEARCH_LEANIX_REAL_API.md` §2, sourced from a real LeanIX API client's Go source): `identifier` (required, human-readable label), `targetUrl` (required), `targetMethod` (default `POST`), `authorizationHeader`, `callback`, `tagSets` (`string[][]`, OR within a group / AND across groups, matched against the fact sheet's tag ids), `workspaceConstraint` (default `ANY`), `payloadMode` (default `DEFAULT`), `active` (default `true`), `ignoreError` (default `true`).
 
-Headers: `X-LeanIX-Event`, `X-LeanIX-Delivery` (stable across retries of the same delivery), `X-LeanIX-Signature: sha256=<hmac>`. Signature = `HMAC-SHA256(webhook.secret, raw_json_body)`.
+**Response:** `{ "status": "OK", "data": { "id", "identifier", "targetUrl", "targetMethod", "deliveryType": "PUSH", "active", ... } }` — every subscription endpoint wraps its payload this way, matching real LeanIX.
 
-Retry schedule (delay before that attempt): 1→immediate, 2→5s, 3→25s, 4→2m, 5→10m, 6-10→1h. Only 2xx counts as success. Every attempt is persisted to `webhook_deliveries`.
+**Delivery auth:** real LeanIX sends `authorizationHeader`'s value verbatim as the `Authorization` header on every delivery — there is no payload-signing scheme in the real product.
+
+**Mock-only convenience fields** (not in real LeanIX — this mock doesn't implement the "Automations" feature real webhook triggers are actually configured through, since there's no license to verify that API against):
+- `events: string[]` — restrict delivery to these types: `FACT_SHEET_CREATED`, `FACT_SHEET_UPDATED`, `FACT_SHEET_ARCHIVED`, `RELATION_CREATED`, `FACT_SHEET_FIELD_UPDATED` (no `FACT_SHEET_DELETED` — LeanIX archives then auto-deletes, no delete event ever fires). Omit to fire on every fact-sheet event.
+- `secret: string` — additionally HMAC-SHA256-signs deliveries (`X-LeanIX-Signature: sha256=<hmac-of-raw-json-body>`), alongside bonus `X-LeanIX-Event`/`X-LeanIX-Delivery` headers.
+- `ignoreError: false` — opt into a retry schedule (delay before that attempt: 1→immediate, 2→5s, 3→25s, 4→2m, 5→10m, 6-10→1h; only 2xx counts as success) via a durable BullMQ queue. Default (`true`, matching real LeanIX's default) does not retry. Every attempt is persisted to `webhook_deliveries` either way.

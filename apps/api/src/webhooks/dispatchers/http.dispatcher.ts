@@ -1,7 +1,7 @@
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
-import axios from 'axios';
+import axios, { Method } from 'axios';
 import { createHmac } from 'crypto';
 import { WEBHOOK_MAX_ATTEMPTS, WEBHOOK_TIMEOUT_MS, webhookRetryDelayMs } from '@leanix-mock/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -28,17 +28,31 @@ export class HttpDispatcher extends WorkerHost {
     }
 
     const body = JSON.stringify(payload);
-    const signature = `sha256=${createHmac('sha256', webhook.secret ?? '').update(body).digest('hex')}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      // Mock-only bonus headers (not part of real LeanIX's delivery contract, but harmless for
+      // a consumer to ignore) — kept so existing integrations built against them keep working.
+      'X-LeanIX-Event': eventType,
+      'X-LeanIX-Delivery': deliveryId,
+    };
+
+    // Real LeanIX authenticates deliveries by sending this header verbatim — no payload
+    // signing. See docs/RESEARCH_LEANIX_REAL_API.md §2.
+    if (webhook.authorizationHeader) {
+      headers.Authorization = webhook.authorizationHeader;
+    }
+    // Mock-only convenience: HMAC-SHA256 signature, only computed if a secret was configured.
+    if (webhook.secret) {
+      headers['X-LeanIX-Signature'] = `sha256=${createHmac('sha256', webhook.secret).update(body).digest('hex')}`;
+    }
 
     try {
-      const response = await axios.post(webhook.url, payload, {
+      const response = await axios.request({
+        url: webhook.targetUrl,
+        method: (webhook.targetMethod || 'POST') as Method,
+        data: payload,
         timeout: WEBHOOK_TIMEOUT_MS,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-LeanIX-Event': eventType,
-          'X-LeanIX-Delivery': deliveryId,
-          'X-LeanIX-Signature': signature,
-        },
+        headers,
         validateStatus: () => true,
       });
 
@@ -57,7 +71,7 @@ export class HttpDispatcher extends WorkerHost {
       });
 
       if (!success) {
-        await this.scheduleRetry(job.data, attemptNumber, `HTTP ${response.status}`);
+        await this.scheduleRetry(job.data, attemptNumber, webhook.ignoreError, `HTTP ${response.status}`);
       }
     } catch (err) {
       const message = (err as Error).message;
@@ -71,11 +85,21 @@ export class HttpDispatcher extends WorkerHost {
           attemptCount: attemptNumber,
         },
       });
-      await this.scheduleRetry(job.data, attemptNumber, message);
+      await this.scheduleRetry(job.data, attemptNumber, webhook.ignoreError, message);
     }
   }
 
-  private async scheduleRetry(data: WebhookDeliveryJobData, attemptNumber: number, reason: string): Promise<void> {
+  private async scheduleRetry(data: WebhookDeliveryJobData, attemptNumber: number, ignoreError: boolean, reason: string): Promise<void> {
+    // `ignoreError` (default true) matches real LeanIX's field name — interpreted here as "the
+    // subscription doesn't care about delivery failures", so no retry. Set it to false to opt
+    // into this mock's retry schedule for testing failure-handling behavior; this specific
+    // retry-vs-ignore mapping is NOT independently confirmed against real LeanIX (see
+    // docs/RESEARCH_LEANIX_REAL_API.md), it's the most defensible reading of the field name.
+    if (ignoreError) {
+      this.logger.debug(`Delivery ${data.deliveryId} failed (${reason}) — ignoreError=true, not retrying`);
+      return;
+    }
+
     if (attemptNumber >= WEBHOOK_MAX_ATTEMPTS) {
       this.logger.warn(`Delivery ${data.deliveryId} gave up after ${attemptNumber} attempts: ${reason}`);
       return;

@@ -178,13 +178,24 @@ See Appendix B in the spec for more LDIF examples (relations, full-mode replace)
 
 ## 10. Webhook testing
 
+The webhook subscription API matches real LeanIX's contract exactly — path, fields, response
+shape (see `docs/RESEARCH_LEANIX_REAL_API.md` §2, sourced from a real LeanIX API client):
+
 ```bash
-curl -X POST http://localhost:4000/services/webhook/v1/webhooks \
+curl -X POST http://localhost:4000/services/webhooks/v1/subscriptions \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"url":"https://your-app.example.com/webhooks/leanix","events":["FACT_SHEET_CREATED","FACT_SHEET_UPDATED"],"secret":"your-webhook-secret"}'
+  -d '{"identifier":"My integration","targetUrl":"https://your-app.example.com/webhooks/leanix","authorizationHeader":"Bearer your-static-token"}'
 ```
 
-Every delivery includes `X-LeanIX-Event`, `X-LeanIX-Delivery`, and `X-LeanIX-Signature: sha256=<hmac>` headers — verify with `HMAC-SHA256(secret, raw_request_body)`. Failed deliveries retry on the schedule in spec section 10.4 (0s / 5s / 25s / 2m / 10m / 1h, max 10 attempts, 50s timeout per attempt) via a durable BullMQ queue — safe across server restarts.
+Response: `{"status":"OK","data":{"id":"wh-...","identifier":"My integration","targetUrl":"...","targetMethod":"POST","deliveryType":"PUSH","active":true,...}}`.
+Also supports `GET`/`PUT`/`DELETE /services/webhooks/v1/subscriptions/{id}`.
+
+**Real LeanIX authenticates deliveries via `authorizationHeader`** (sent verbatim as the `Authorization` header on every delivery) — there's no HMAC payload signing in the real product. Real webhook triggers are also configured via a separate "Automations" feature this mock doesn't implement (no license to verify its API against); as a mock-only stand-in, this mock fires a subscription on every fact-sheet lifecycle event unless you narrow it with the extension fields below.
+
+**Mock-only convenience extensions** (not part of real LeanIX, kept for local testing — pass them if useful, ignore them otherwise):
+- `events: ["FACT_SHEET_CREATED", ...]` — only deliver for these event types (omit to fire on everything)
+- `secret: "..."` — additionally HMAC-SHA256-signs the payload, sent as `X-LeanIX-Signature: sha256=<hmac>` alongside bonus `X-LeanIX-Event`/`X-LeanIX-Delivery` headers
+- `ignoreError: false` — opt into this mock's retry schedule (0s/5s/25s/2m/10m/1h, max 10 attempts, 50s timeout, durable via BullMQ) on delivery failure; real LeanIX's default (`ignoreError: true`, also this mock's default) does not retry
 
 A quick local receiver for testing:
 

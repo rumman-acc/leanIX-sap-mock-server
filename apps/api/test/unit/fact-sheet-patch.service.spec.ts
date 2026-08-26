@@ -82,4 +82,116 @@ describe('FactSheetPatchService', () => {
     );
     expect(factSheetService.recalculateCompletionWithinTx).toHaveBeenCalled();
   });
+
+  describe('qualitySeal patch (real LeanIX contract — see docs/RESEARCH_LEANIX_REAL_API.md §4)', () => {
+    it('accepts the real lowercase form ("approve")', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await service.update('fs-1', [{ op: 'replace', path: '/qualitySeal', value: 'approve' }], actor);
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ qualitySeal: 'APPROVED' }) }),
+      );
+    });
+
+    it('accepts this mock\'s own uppercase enum form ("BROKEN")', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await service.update('fs-1', [{ op: 'replace', path: '/qualitySeal', value: 'BROKEN' }], actor);
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ qualitySeal: 'BROKEN' }) }),
+      );
+    });
+
+    it('rejects an unrecognized value', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await expect(
+        service.update('fs-1', [{ op: 'replace', path: '/qualitySeal', value: 'nonsense' }], actor),
+      ).rejects.toMatchObject({ code: 'INVALID_PATCH' });
+    });
+  });
+
+  describe('lifecycle patches (real LeanIX per-phase form — see docs/RESEARCH_LEANIX_REAL_API.md §4)', () => {
+    it('patches a single phase via /lifecycle/{phaseName}, preserving other phases', async () => {
+      const prisma = buildPrismaMock();
+      prisma.factSheet.findUniqueOrThrow.mockResolvedValue({
+        id: 'fs-1',
+        typeId: 'type-Application',
+        lifecycle: { phases: [{ phase: 'plan', startDate: '2020-01-01' }] },
+      });
+      const { service } = buildService(prisma);
+
+      await service.update('fs-1', [{ op: 'replace', path: '/lifecycle/phaseIn', value: '2022-07-01' }], actor);
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            lifecycle: {
+              phases: [
+                { phase: 'plan', startDate: '2020-01-01' },
+                { phase: 'phaseIn', startDate: '2022-07-01' },
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('rejects an unknown phase name', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await expect(
+        service.update('fs-1', [{ op: 'replace', path: '/lifecycle/notAPhase', value: '2022-07-01' }], actor),
+      ).rejects.toMatchObject({ code: 'INVALID_PATCH' });
+    });
+
+    it('parses a stringified-JSON full-replace value (real LeanIX form)', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await service.update(
+        'fs-1',
+        [{ op: 'replace', path: '/lifecycle', value: '{"phases":[{"phase":"plan","startDate":"2019-01-12"}]}' }],
+        actor,
+      );
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ lifecycle: { phases: [{ phase: 'plan', startDate: '2019-01-12' }] } }) }),
+      );
+    });
+  });
+
+  describe('externalId patch (real LeanIX structured form — see docs/RESEARCH_LEANIX_REAL_API.md §4)', () => {
+    it('unwraps a structured { type, externalId } object to the plain string this mock stores', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await service.update(
+        'fs-1',
+        [{ op: 'replace', path: '/externalId', value: { type: 'ExternalId', externalId: 'EXT-STRUCT-1' } }],
+        actor,
+      );
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ externalId: 'EXT-STRUCT-1' }) }),
+      );
+    });
+
+    it('still accepts a plain string (mock-only convenience form)', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildService(prisma);
+
+      await service.update('fs-1', [{ op: 'replace', path: '/externalId', value: 'EXT-PLAIN-1' }], actor);
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ externalId: 'EXT-PLAIN-1' }) }),
+      );
+    });
+  });
 });

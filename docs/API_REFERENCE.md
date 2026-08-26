@@ -48,7 +48,14 @@ All other endpoints require `Authorization: Bearer <access_token>`.
 
 **Mutations:** `createFactSheet(input)`, `updateFactSheet(id, patches)`, `archiveFactSheet(id)`, `reviveFactSheet(id)`, `deleteFactSheet(id)` (trash-bin only).
 
-**Patch paths:** `/name`, `/description`, `/externalId`, `/lifecycle` (replace only); `/tags` (add), `/tags/{tagId}` (remove); `/{relationTypeKey}` (add, value = target fact sheet id), `/{relationTypeKey}/{relationId}` (replace/remove); `/{customAttributeKey}` (replace/remove) for type-specific fields like `functionalSuitability`.
+**Patch paths:** `/name`, `/description` (replace only); `/tags` (add), `/tags/{tagId}` (remove); `/{relationTypeKey}` (add, value = target fact sheet id), `/{relationTypeKey}/{relationId}` (replace/remove); `/{customAttributeKey}` (replace/remove) for type-specific fields like `functionalSuitability`.
+
+- `/externalId` — accepts either a plain string (mock convenience) or real LeanIX's structured `{"type":"ExternalId","externalId":"..."}` object (unwrapped internally to the plain string this mock stores/compares).
+- `/lifecycle/{phaseName}` — real LeanIX's per-phase form (e.g. `/lifecycle/phaseIn`, value = a plain date string like `"2022-07-01"`), preserves other phases. `phaseName` ∈ `plan`, `phaseIn`, `active`, `phaseOut`, `endOfLife`.
+- `/lifecycle` (whole-object replace) — accepts either an inline JSON object or real LeanIX's form, a JSON-encoded **string** value (`"{\"phases\":[...]}"`).
+- `/qualitySeal` — accepts real LeanIX's lowercase form (`"approve"`/`"broken"`) or this mock's own uppercase enum (`"APPROVED"`/`"BROKEN"`); not exposed for manual patching until this pass (previously only ever auto-set to `BROKEN` on create).
+
+**`lxState`** (read-only, on `FactSheet`): real LeanIX's field name/values for quality-seal state (`"APPROVED"` / `"BROKEN_QUALITY_SEAL"`), derived from `qualitySeal` — both fields always agree, patch `/qualitySeal` to change either. See `docs/RESEARCH_LEANIX_REAL_API.md` §4 for sourcing on all of the above.
 
 **Filtering — real LeanIX form** (matches exactly, see `docs/RESEARCH_LEANIX_REAL_API.md` §3):
 ```graphql

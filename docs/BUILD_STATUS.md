@@ -156,7 +156,18 @@ User asked for deep research into real LeanIX behavior (no license available, so
 
 **#3 GraphQL filtering (`facetFilters`) — DONE, live-verified.** Added `FilterInput.facetFilters: [FacetFilterInput]` (`facetKey`, `operator: OR|AND`, `keys: [String]`) matching real LeanIX exactly, alongside the existing mock-only `factSheetType`/`status`/`fieldFilters`/`relationFilters` (both forms combine via AND if used together — same "support both" pattern as auth). Well-known facetKeys implemented: `"FactSheetTypes"` (→ `typeId`), `"_TAGS_"` (→ tag assignment membership, OR/AND both implemented); any other key falls back to a custom-attribute technicalKey lookup. Added the real facet-discovery query `allFactSheets { filterOptions { facets { facetKey results { name key } } } } }` (`FactSheetService.getFilterOptions()` + a new `FactSheetConnectionResolver`), returning live fact-sheet-type and tag facets. Live-verified: facet discovery lists `FactSheetTypes`/`_TAGS_`; `facetFilters: [{facetKey:"FactSheetTypes", keys:["ITComponent"]}]` correctly returns only ITComponents; a `_TAGS_` filter correctly returns only the one tagged fact sheet; legacy `factSheetType` filter still works unchanged. Full suite: 37/37 (23 unit + 14 e2e).
 
-**All three research-driven fixes are now complete.** `docs/RESEARCH_LEANIX_REAL_API.md` §1-3 findings are all addressed; §4 (smaller corrections: patch paths for lifecycle/externalId/qualitySeal, possible `lxState` field) and the "not re-verified" section remain open for a future pass if desired.
+**All three research-driven fixes are now complete.** `docs/RESEARCH_LEANIX_REAL_API.md` §1-3 findings are all addressed.
+
+## 4e. §4 smaller corrections — DONE, live-verified (2026-08-26)
+
+User confirmed continuing with the lower-confidence §4 items. Additional research (SAP community threads) clarified `lxState` = quality-seal state field (distinct from `status`), values `"APPROVED"`/`"BROKEN_QUALITY_SEAL"`. Implemented and live-verified all four:
+- `/lifecycle/{phaseName}` per-phase patch (preserves other phases) alongside whole-object `/lifecycle` replace, which now also accepts real LeanIX's JSON-encoded-string value form
+- **Real bug found + fixed along the way**: `LifecyclePhase.startDate` was GraphQL `DateTime` (strict ISO datetime) but real LeanIX AND this mock's own seed data use date-only strings (`"2020-01-01"`) — this was silently broken (would throw on any lifecycle query) until this pass exercised it; changed to `String`
+- `/externalId` patch unwraps real LeanIX's structured `{type, externalId}` object to the plain string this mock stores (plain string still also accepted); full multi-external-id support NOT implemented (unconfirmed real semantics)
+- `/qualitySeal` patch added (previously unpatchable), accepts real lowercase (`"approve"`/`"broken"`) and this mock's uppercase enum form
+- `lxState: String!` added as a read-only derived field on `FactSheet`
+
+Live-verified all four via curl against the running server + Neon; 8 new unit tests. Full suite: 45/45 (31 unit + 14 e2e).
 
 ## 5. Next Steps (for a future session)
 

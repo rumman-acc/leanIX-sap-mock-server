@@ -156,6 +156,10 @@ type FactSheet {
   externalId: String
   lifecycle: Lifecycle
   qualitySeal: QualitySeal!
+  # Real LeanIX's field name for quality-seal state, with different value casing
+  # ("APPROVED" / "BROKEN_QUALITY_SEAL") — see docs/RESEARCH_LEANIX_REAL_API.md §4.
+  # Read-only derived value; patch /qualitySeal to change it (updates both fields).
+  lxState: String!
   completion: Float!
   status: FactSheetStatus!
   trashBin: Boolean!
@@ -178,7 +182,9 @@ type Lifecycle {
 
 type LifecyclePhase {
   phase: String!
-  startDate: DateTime
+  # String, not DateTime: real (and this mock's own seed data) lifecycle dates are date-only
+  # calendar dates ("2022-07-01"), which the strict DateTime scalar rejects on output.
+  startDate: String
 }
 
 type Tag {

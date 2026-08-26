@@ -63,6 +63,11 @@ export class FactSheetResolver {
     return factSheet.type.technicalKey;
   }
 
+  @ResolveField('lxState')
+  lxState(@Parent() factSheet: FactSheetRecord) {
+    return factSheet.qualitySeal === 'APPROVED' ? 'APPROVED' : 'BROKEN_QUALITY_SEAL';
+  }
+
   @ResolveField('lifecycle')
   lifecycle(@Parent() factSheet: FactSheetRecord) {
     const lifecycle = factSheet.lifecycle as { asString?: string; phases?: unknown[] } | null;

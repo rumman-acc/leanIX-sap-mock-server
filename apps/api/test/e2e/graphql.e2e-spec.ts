@@ -15,7 +15,10 @@ describe('GraphQL API (e2e)', () => {
     const tokenRes = await request(app.getHttpServer())
       .post('/services/mtm/v1/oauth2/token')
       .type('form')
-      .send('grant_type=client_credentials&client_id=dev-token-e2e&client_secret=dev-secret-e2e');
+      // Must match the technical user actually registered by packages/prisma/seed.ts (the
+      // token endpoint validates an exact stored credential now, not a pattern — see
+      // apps/api/src/auth/auth.service.ts).
+      .send('grant_type=client_credentials&client_id=dev-token-12345&client_secret=dev-secret-67890');
 
     expect(tokenRes.status).toBe(200);
     token = tokenRes.body.access_token;

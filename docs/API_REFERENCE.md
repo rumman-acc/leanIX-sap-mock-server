@@ -13,8 +13,8 @@ Public (no auth required). `Content-Type: application/x-www-form-urlencoded`.
 | Field | Required | Notes |
 |---|---|---|
 | `grant_type` | yes | must be `client_credentials` |
-| `client_id` | yes | must start with `dev-token-` |
-| `client_secret` | yes | must start with `dev-secret-` |
+| `client_id` | yes | must exactly match a registered technical user's `apiToken` (seeded from `LEANIX_API_TOKEN`, default `dev-token-12345`) |
+| `client_secret` | yes | must exactly match that same user's `apiTokenSecret` (seeded from `LEANIX_API_TOKEN_SECRET`, default `dev-secret-67890`) |
 
 Success (200):
 ```json

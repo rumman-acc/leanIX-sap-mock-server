@@ -46,7 +46,9 @@ describe('Integration API + Webhooks (e2e)', () => {
     const tokenRes = await request(app.getHttpServer())
       .post('/services/mtm/v1/oauth2/token')
       .type('form')
-      .send('grant_type=client_credentials&client_id=dev-token-int&client_secret=dev-secret-int');
+      // Must match the technical user actually registered by packages/prisma/seed.ts (exact
+      // stored credential now, not a pattern — see apps/api/src/auth/auth.service.ts).
+      .send('grant_type=client_credentials&client_id=dev-token-12345&client_secret=dev-secret-67890');
     token = tokenRes.body.access_token;
   });
 

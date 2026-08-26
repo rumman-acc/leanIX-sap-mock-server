@@ -93,7 +93,7 @@ curl -X POST http://localhost:4000/services/mtm/v1/oauth2/token \
   --data "grant_type=client_credentials&client_id=dev-token-12345&client_secret=dev-secret-67890"
 ```
 
-Any `client_id` starting with `dev-token-` and `client_secret` starting with `dev-secret-` is accepted and always resolves to `workspaceRole: ADMIN` (per spec section 4.5). The returned JWT is valid for 1 hour.
+This validates against an actual registered technical user's credential in the database — same as real LeanIX (an exact match, not a pattern) — so it behaves identically when you later point at a real workspace. The default seeded credential is `dev-token-12345`/`dev-secret-67890` (`workspaceRole: ADMIN`); set `LEANIX_API_TOKEN`/`LEANIX_API_TOKEN_SECRET` before running `npm run prisma:seed` to register your own, and use those same values in your custom application's config. The returned JWT is valid for 1 hour.
 
 ## 6b. Explore the API
 

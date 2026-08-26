@@ -126,6 +126,18 @@ User wants to deploy `apps/api` to Render and integrate it into a custom applica
 
 **Fidelity/exactness — explicitly bounded.** User has no real LeanIX license to compare against, so exactness work proceeds via deep research against public SAP LeanIX docs rather than verifying against real API traffic. User should be aware (already told them): this mock matches the *documented contract*, not real LeanIX's actual (much larger, fragment-based) GraphQL schema — true 1:1 fidelity can't be guaranteed without either a real license to diff against or the consuming app's actual real-LeanIX query/mutation shapes to verify against specifically.
 
+## 4c. Removed a mock-only auth shortcut (2026-08-26)
+
+User pushed back on a real divergence from real LeanIX behavior: `AuthService.validateClientCredentials` was checking `client_id.startsWith('dev-token-')` / `client_secret.startsWith('dev-secret-')` — i.e. **any** string with that prefix authenticated, not an exact registered credential. Real LeanIX validates an exact technical-user token/secret pair. This was a shortcut that would silently work in the mock and then need an actual code change at cutover (removing the assumption that "any dev-token-* string" is valid) — exactly the kind of thing the domain-only-swap goal can't tolerate.
+
+**Fixed:**
+- `AuthService.validateClientCredentials` now does `prisma.user.findFirst({ where: { apiToken: clientId, apiTokenSecret: clientSecret } })` — exact match against a real registered `User` row, no pattern.
+- `packages/prisma/seed.ts` now reads `LEANIX_API_TOKEN`/`LEANIX_API_TOKEN_SECRET` from env (falling back to the documented `dev-token-12345`/`dev-secret-67890` defaults) when registering the technical user, and the upsert's `update` branch also sets those fields — so **re-running the seed with different env values rotates the credential**, the same operational shape as a real LeanIX admin rotating an API token.
+- JWT claims now come from the real `User` row (`sub` = actual `User.id`, `userName` = actual email, `workspaceRole` = the user's actual stored role) instead of a fabricated `technical-user-{clientId}` string — as a side effect, `FactSheet.createdBy` now correctly references a real user id instead of a dangling string. Verified live: `createFactSheet` → `createdBy: "user-technical"` (a real row), and a `dev-token-XYZ`/`dev-secret-XYZ` credential that would have passed under the old prefix check now correctly returns `401 invalid_client`.
+- Removed the now-unused `OAUTH_DEV_CLIENT_ID_PREFIX`/`OAUTH_DEV_CLIENT_SECRET_PREFIX` constants from `packages/shared`.
+- Updated `apps/api/test/e2e/*.spec.ts` (they'd been using arbitrary `dev-token-e2e`/`dev-token-int` style ids that only worked under the old prefix check), `README.md`, `docs/API_REFERENCE.md`, `docs/DEPLOYMENT.md` to describe exact-match behavior and the rotate-via-reseed flow.
+- All 26 tests (17 unit + 9 e2e) still pass.
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

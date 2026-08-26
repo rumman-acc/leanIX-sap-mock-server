@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { OAUTH_DEV_CLIENT_ID_PREFIX, OAUTH_DEV_CLIENT_SECRET_PREFIX } from '@leanix-mock/shared';
+import { ConfigService } from '@nestjs/config';
+import { User } from '@leanix-mock/prisma';
+import { WorkspaceRole } from '@leanix-mock/shared';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { LeanIxConfig } from '../config/leanix.config';
 
 export interface TokenResponse {
@@ -18,36 +20,39 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
-   * Mock client-credentials validation. Real LeanIX validates against a registered technical
-   * user; here any client_id starting with `dev-token-` and client_secret starting with
-   * `dev-secret-` is accepted, always resolving to workspaceRole ADMIN (per spec 4.5).
+   * Validates client_id/client_secret against an actual registered technical user's API
+   * token/secret in the database — the same shape of check real LeanIX performs (a technical
+   * user is created in the workspace with a specific token/secret pair; only that exact pair
+   * authenticates). No prefix or pattern shortcuts: whatever credential is seeded/configured is
+   * the only thing that works, same as it would be against a real workspace.
    */
-  validateClientCredentials(clientId: string, clientSecret: string): boolean {
-    return (
-      typeof clientId === 'string' &&
-      typeof clientSecret === 'string' &&
-      clientId.startsWith(OAUTH_DEV_CLIENT_ID_PREFIX) &&
-      clientSecret.startsWith(OAUTH_DEV_CLIENT_SECRET_PREFIX)
-    );
+  async validateClientCredentials(clientId: string, clientSecret: string): Promise<User | null> {
+    if (!clientId || !clientSecret) {
+      return null;
+    }
+    return this.prisma.user.findFirst({
+      where: { apiToken: clientId, apiTokenSecret: clientSecret },
+    });
   }
 
-  issueToken(clientId: string): TokenResponse {
+  issueToken(user: User): TokenResponse {
     const config = this.configService.get<LeanIxConfig>('leanix')!;
     const now = Math.floor(Date.now() / 1000);
 
     const payload = {
-      sub: `technical-user-${clientId}`,
+      sub: user.id,
       iss: 'leanix-mock',
       aud: 'leanix-services',
       iat: now,
       exp: now + TOKEN_TTL_SECONDS,
-      workspaceId: 'ws-development',
+      workspaceId: user.workspaceId,
       workspaceName: config.workspace,
-      workspaceRole: 'ADMIN' as const,
-      userName: 'technical-user@mock.local',
+      workspaceRole: user.role as WorkspaceRole,
+      userName: user.email,
     };
 
     const access_token = this.jwtService.sign(payload, {

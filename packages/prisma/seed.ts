@@ -9,6 +9,13 @@ const prisma = new PrismaClient();
 const WORKSPACE_ID = 'ws-development';
 const TECH_USER_ID = 'user-technical';
 
+// The technical user's API credential is the ONLY thing the OAuth token endpoint accepts (no
+// pattern/prefix shortcuts — see apps/api/src/auth/auth.service.ts). Configure your own via
+// LEANIX_API_TOKEN/LEANIX_API_TOKEN_SECRET before seeding to register a different credential;
+// re-running the seed rotates it. Falls back to the repo's documented dev defaults.
+const TECH_USER_API_TOKEN = process.env.LEANIX_API_TOKEN ?? 'dev-token-12345';
+const TECH_USER_API_TOKEN_SECRET = process.env.LEANIX_API_TOKEN_SECRET ?? 'dev-secret-67890';
+
 async function seedWorkspaceAndUser() {
   await prisma.workspace.upsert({
     where: { id: WORKSPACE_ID },
@@ -23,15 +30,18 @@ async function seedWorkspaceAndUser() {
 
   await prisma.user.upsert({
     where: { id: TECH_USER_ID },
-    update: {},
+    update: {
+      apiToken: TECH_USER_API_TOKEN,
+      apiTokenSecret: TECH_USER_API_TOKEN_SECRET,
+    },
     create: {
       id: TECH_USER_ID,
       email: 'technical-user@mock.local',
       name: 'Technical User',
       role: 'ADMIN',
       workspaceId: WORKSPACE_ID,
-      apiToken: 'dev-token-12345',
-      apiTokenSecret: 'dev-secret-67890',
+      apiToken: TECH_USER_API_TOKEN,
+      apiTokenSecret: TECH_USER_API_TOKEN_SECRET,
     },
   });
 

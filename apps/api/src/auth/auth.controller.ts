@@ -21,13 +21,14 @@ export class AuthController {
   @HttpCode(200)
   @ApiOperation({
     summary: 'Exchange client credentials for a JWT access token',
-    description: 'Mock accepts any client_id starting with "dev-token-" and client_secret starting with "dev-secret-", always resolving to workspaceRole ADMIN.',
+    description:
+      'Validates client_id/client_secret against a registered technical user\'s API token/secret in the workspace — the same contract as real LeanIX (an exact registered credential, not a pattern match).',
   })
   @ApiConsumes('application/x-www-form-urlencoded')
   @ApiBody({ type: TokenRequestDto })
   @ApiResponse({ status: 200, description: 'Token issued', type: TokenResponseDto })
   @ApiResponse({ status: 401, description: 'Invalid client credentials' })
-  token(@Body() body: TokenRequestBody, @Res() res: Response): void {
+  async token(@Body() body: TokenRequestBody, @Res() res: Response): Promise<void> {
     const { grant_type, client_id, client_secret } = body ?? {};
 
     if (grant_type !== 'client_credentials') {
@@ -38,7 +39,9 @@ export class AuthController {
       return;
     }
 
-    if (!client_id || !client_secret || !this.authService.validateClientCredentials(client_id, client_secret)) {
+    const user = client_id && client_secret ? await this.authService.validateClientCredentials(client_id, client_secret) : null;
+
+    if (!user) {
       res.status(401).json({
         error: 'invalid_client',
         error_description: 'Client authentication failed',
@@ -46,7 +49,7 @@ export class AuthController {
       return;
     }
 
-    const tokenResponse = this.authService.issueToken(client_id);
+    const tokenResponse = this.authService.issueToken(user);
     res.status(200).json(tokenResponse);
   }
 }

@@ -204,6 +204,10 @@ npm run test:e2e --workspace=apps/api   # e2e tests — boots the full app again
 
 Both suites are green in this repo's own dev environment (17 unit + 9 e2e as of the last commit — see `docs/BUILD_STATUS.md` for exactly what each covers).
 
+## Deploying
+
+To make this reachable by a real application (not just localhost), see [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) — one-click Render deploy via the included `render.yaml`.
+
 ## Known limitations
 
 - No Admin UI — spec marks this "if practical"; skipped in favor of the required API surface, tests, and docs. GraphQL Playground (enabled at the GraphQL endpoint) covers interactive exploration instead.

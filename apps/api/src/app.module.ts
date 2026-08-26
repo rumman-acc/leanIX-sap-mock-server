@@ -16,8 +16,10 @@ import { MetaModelModule } from './meta-model/meta-model.module';
 import { GraphqlModule } from './graphql/graphql.module';
 import { TrashBinModule } from './trash-bin/trash-bin.module';
 import { RestModule } from './rest/rest.module';
+import { HealthController } from './common/health/health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,

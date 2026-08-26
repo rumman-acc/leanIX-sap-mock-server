@@ -112,6 +112,20 @@ All of the following were exercised live against the running server (native Post
 - No Admin UI (spec: "if practical" — deprioritized in favor of required surface + tests + docs).
 - No dedicated performance/load testing pass.
 
+## 4b. Render Deployment Readiness (added 2026-08-26)
+
+User wants to deploy `apps/api` to Render and integrate it into a custom application, with the goal of a domain-only swap to real LeanIX later. Made the API deployment-ready:
+- `GET /health` (public) — Render health-check target
+- CORS enabled (`app.enableCors`), origin configurable via `CORS_ORIGIN` env var (default `*`)
+- Explicit `0.0.0.0` bind (required inside a container/PaaS)
+- `render.yaml` (Blueprint) at repo root — build runs `prisma migrate deploy` automatically; secrets (`DATABASE_URL`, `REDIS_URL`, `LEANIX_API_TOKEN`/`_SECRET`) are `sync: false` (user fills in via dashboard), `JWT_SECRET` auto-generated
+- `docs/DEPLOYMENT.md` — step-by-step Render deploy guide, incl. the one-time seed step (not part of the build, to avoid re-seeding every deploy) and free-tier cold-start caveat
+- User will click-deploy themselves (no Render account access given to this session) — **not yet actually deployed**, only prepared
+
+**MCP deployment — explicitly deferred.** User asked how a custom app would "consume MCP." Clarified: MCP is for an LLM/agent tool-calling component, not a normal app integration path, and real LeanIX has no MCP server either — it was never part of the mock↔real domain-swap story. Our MCP server only speaks stdio (local process spawn) today; making it reachable remotely from Render would require switching to MCP's Streamable HTTP transport (a real code change). **Not done** — waiting on user to confirm their custom app actually has an agentic component before doing that work.
+
+**Fidelity/exactness — explicitly bounded.** User has no real LeanIX license to compare against, so exactness work proceeds via deep research against public SAP LeanIX docs rather than verifying against real API traffic. User should be aware (already told them): this mock matches the *documented contract*, not real LeanIX's actual (much larger, fragment-based) GraphQL schema — true 1:1 fidelity can't be guaranteed without either a real license to diff against or the consuming app's actual real-LeanIX query/mutation shapes to verify against specifically.
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

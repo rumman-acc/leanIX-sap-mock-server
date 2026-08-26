@@ -18,6 +18,8 @@ export interface LeanIxConfig {
   trashBinRetentionDays: number;
   rateLimitUserPerMinute: number;
   rateLimitWorkspacePerMinute: number;
+  /** Comma-separated list of allowed CORS origins, or "*" to allow any origin (default). */
+  corsOrigin: string;
 }
 
 export default registerAs(
@@ -40,5 +42,6 @@ export default registerAs(
     trashBinRetentionDays: parseInt(process.env.MOCK_TRASH_BIN_RETENTION_DAYS || '90', 10),
     rateLimitUserPerMinute: parseInt(process.env.RATE_LIMIT_USER_PER_MINUTE || '1800', 10),
     rateLimitWorkspacePerMinute: parseInt(process.env.RATE_LIMIT_WORKSPACE_PER_MINUTE || '1200', 10),
+    corsOrigin: process.env.CORS_ORIGIN || '*',
   }),
 );

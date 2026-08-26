@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: leanix-mock-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /health
+    buildCommand: >-
+      npm install &&
+      npm run build --workspace=packages/shared &&
+      npm run generate --workspace=packages/prisma &&
+      (cd packages/prisma && npx prisma migrate deploy) &&
+      npm run build --workspace=apps/api
+    startCommand: node apps/api/dist/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LEANIX_MODE
+        value: mock
+      - key: LEANIX_SUBDOMAIN
+        value: mock
+      - key: LEANIX_WORKSPACE
+        value: development
+      # Set this to this service's own Render URL once you know it (Render assigns it on first
+      # deploy) — informational only, nothing in the app currently depends on it being correct.
+      - key: LEANIX_BASE_URL
+        value: https://leanix-mock-api.onrender.com
+      # --- Secrets: fill these in via the Render dashboard after the Blueprint creates the
+      # service (sync: false means Render will NOT read a value from this file) ---
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: LEANIX_API_TOKEN
+        sync: false
+      - key: LEANIX_API_TOKEN_SECRET
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      # --- Mock feature flags (safe defaults, change via dashboard if needed) ---
+      - key: MOCK_RATE_LIMIT_ENABLED
+        value: 'true'
+      - key: MOCK_WEBHOOK_DELIVERY_ENABLED
+        value: 'true'
+      - key: MOCK_AUTO_DELETE_ENABLED
+        value: 'true'
+      - key: MOCK_TRASH_BIN_RETENTION_DAYS
+        value: '90'
+      - key: RATE_LIMIT_USER_PER_MINUTE
+        value: '1800'
+      - key: RATE_LIMIT_WORKSPACE_PER_MINUTE
+        value: '1200'
+      # Restrict to your custom application's real origin(s) once known (comma-separated);
+      # '*' (default) allows any origin, fine for initial testing.
+      - key: CORS_ORIGIN
+        value: '*'

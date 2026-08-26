@@ -13,6 +13,14 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const config = configService.get<LeanIxConfig>('leanix')!;
 
+  // A custom application integrating this mock (or later, real LeanIX) typically calls it from
+  // a browser on a different origin. Real LeanIX's API is also cross-origin from any consuming
+  // app, so permissive CORS here matches that reality rather than diverging from it.
+  app.enableCors({
+    origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((o) => o.trim()),
+    credentials: true,
+  });
+
   const swaggerDocument = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
@@ -28,7 +36,9 @@ async function bootstrap() {
   );
   SwaggerModule.setup('api-docs', app, swaggerDocument);
 
-  await app.listen(config.port);
+  // Bind to 0.0.0.0, not just localhost — required for the port to be reachable when the
+  // process runs inside a container/PaaS (e.g. Render), which routes traffic to all interfaces.
+  await app.listen(config.port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`LeanIX mock server listening on http://localhost:${config.port}`);
   // eslint-disable-next-line no-console

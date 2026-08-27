@@ -188,6 +188,8 @@ While fixing this, `apps/mcp`'s build also turned out to be broken (unrelated to
 
 Full suite re-verified: 45/45 (31 unit + 14 e2e) after all of the above.
 
+**Second Render attempt still failed, same root cause escalated further**: `Option 'moduleResolution=node10' has been removed` — Render's `npm install` resolved a TypeScript newer than even the local 5.9.3 that validated the first fix (the IDE's own inline diagnostics had already been warning `node10` "will stop functioning in TypeScript 7.0"; Render apparently landed on something at/past that line). Chasing specific legacy value names (`node` → `node10` → ???) across a caret-ranged devDependency is a losing game. **Real fix**: removed `moduleResolution` entirely from all three tsconfig.json files instead of renaming it again — when `module: "commonjs"` and `moduleResolution` is unspecified, TypeScript auto-selects the equivalent classic resolution algorithm on its own, so there's no version-specific value name left to break on a future `npm install`. Verified locally (same 5.9.3): all three packages (`shared`, `prisma`, `mcp`) plus the full API build succeed with the option removed; full suite 45/45 again.
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

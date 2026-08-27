@@ -7,6 +7,12 @@ const FACT_SHEET_SEARCH_FIELDS = `
 `;
 
 export function registerInventoryTools(server: McpServer, client: LeanIxClient): void {
+  // @ts-expect-error TS2589 "Type instantiation is excessively deep" — an instability in this
+  // SDK's registerTool() generic inference that shifts with zod/typescript patch versions.
+  // Runtime validation is unaffected either way — zod still validates normally at call time;
+  // this only silences the compile-time inference failure. If a future dependency bump makes
+  // this line stop erroring, tsc will flag the directive as unused — that's the signal to
+  // remove it (also check fact-sheet.tools.ts's update_fact_sheet, which hits the same issue).
   server.registerTool(
     'search_fact_sheets',
     {

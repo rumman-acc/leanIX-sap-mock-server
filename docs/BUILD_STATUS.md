@@ -180,6 +180,14 @@ User asked to pull concrete examples from `github.com/leanix-public/integration-
 
 Full suite still 45/45 after these changes.
 
+## 4g. Render deploy build failure — fixed (2026-08-27)
+
+First real Render deploy attempt failed at the `packages/shared` build step: `tsconfig.json(13,25): error TS5108: Option 'moduleResolution=node' has been removed. Please remove it from your configuration.` Root cause: `package.json`'s `typescript` devDependency uses a caret range (`^5.5.4`); Render's fresh `npm install` resolved a much newer patch (5.9.3, confirmed matching this session's own local `npx tsc --version`) where the legacy `"moduleResolution": "node"` value was removed outright (its modern replacement is `"node10"`). This hadn't surfaced locally before because the local build had been running against an already-installed, slightly older resolution until a coincidental later `npm install`. Fixed in all three tsconfig.json files that set it (`packages/shared`, `packages/prisma`, `apps/mcp`) — verified building cleanly with the actual pinned 5.9.3.
+
+While fixing this, `apps/mcp`'s build also turned out to be broken (unrelated to the Render deploy itself, since MCP isn't deployed there, but same root cause: dependency version drift under caret ranges) — the TS2589 "excessively deep" issue from earlier in this session (docs/BUILD_STATUS.md Phase 3 section) had resurfaced, this time affecting `update_fact_sheet` and `search_fact_sheets` specifically (the exact affected tool shifted between the two occurrences — confirms it's genuinely version-sensitive, not a fixed schema-complexity threshold). Fixed the same way as before: `// @ts-expect-error` directly above the two affected `registerTool()` calls, which also makes it self-documenting — if a future dependency bump resolves the underlying SDK/zod/typescript issue, `tsc` will flag the directive as unused, which is the signal to remove it.
+
+Full suite re-verified: 45/45 (31 unit + 14 e2e) after all of the above.
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

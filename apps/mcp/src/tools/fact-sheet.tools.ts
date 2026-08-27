@@ -59,6 +59,7 @@ export function registerFactSheetTools(server: McpServer, client: LeanIxClient):
     value: z.any().optional(),
   });
 
+  // @ts-expect-error TS2589 — see the comment on search_fact_sheets in inventory.tools.ts.
   server.registerTool(
     'update_fact_sheet',
     {

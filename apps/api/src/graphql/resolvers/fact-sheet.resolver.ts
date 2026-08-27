@@ -30,14 +30,31 @@ export class FactSheetResolver {
   }
 
   @Mutation('createFactSheet')
-  async createFactSheet(@Args('input') input: BaseFactSheetInput, @CurrentUser() user: JwtClaims) {
-    const factSheet = await this.factSheetService.create(input, user);
+  async createFactSheet(
+    @Args('input') input: BaseFactSheetInput,
+    @Args('patches') patches: Patch[] | undefined,
+    @CurrentUser() user: JwtClaims,
+  ) {
+    let factSheet = await this.factSheetService.create(input, user);
+    // Real LeanIX's createFactSheet accepts input + patches together in one call — see
+    // docs/RESEARCH_LEANIX_REAL_API.md §6. Applying patches right after create reuses the same
+    // validated patch logic updateFactSheet uses, no duplicated business logic.
+    if (patches?.length) {
+      factSheet = await this.patchService.update(factSheet.id, patches, user);
+    }
     return { factSheet, errors: [] };
   }
 
   @Mutation('updateFactSheet')
-  async updateFactSheet(@Args('id') id: string, @Args('patches') patches: Patch[], @CurrentUser() user: JwtClaims) {
-    const factSheet = await this.patchService.update(id, patches, user);
+  async updateFactSheet(
+    @Args('id') id: string,
+    @Args('rev') rev: number | undefined,
+    @Args('patches') patches: Patch[],
+    @Args('comment') comment: string | undefined,
+    @Args('validateOnly') validateOnly: boolean | undefined,
+    @CurrentUser() user: JwtClaims,
+  ) {
+    const factSheet = await this.patchService.update(id, patches, user, { rev, comment, validateOnly });
     return { factSheet, errors: [] };
   }
 
@@ -58,6 +75,22 @@ export class FactSheetResolver {
     return this.factSheetService.permanentDelete(id);
   }
 
+  @Mutation('upsertRelation')
+  upsertRelation(
+    @Args('from') from: string,
+    @Args('to') to: string,
+    @Args('type') type: string,
+    @Args('description') description: string | undefined,
+    @CurrentUser() user: JwtClaims,
+  ) {
+    return this.factSheetService.upsertRelation(from, to, type, description, user);
+  }
+
+  @Mutation('deleteRelation')
+  deleteRelation(@Args('id') id: string) {
+    return this.factSheetService.deleteRelation(id);
+  }
+
   @ResolveField('type')
   type(@Parent() factSheet: FactSheetRecord) {
     return factSheet.type.technicalKey;
@@ -65,7 +98,9 @@ export class FactSheetResolver {
 
   @ResolveField('lxState')
   lxState(@Parent() factSheet: FactSheetRecord) {
-    return factSheet.qualitySeal === 'APPROVED' ? 'APPROVED' : 'BROKEN_QUALITY_SEAL';
+    // Real LeanIX's lxState naming only diverges from qualitySeal for BROKEN (-> BROKEN_QUALITY_SEAL);
+    // APPROVED/DRAFT/REJECTED are spelled the same in both — see docs/RESEARCH_LEANIX_REAL_API.md §6.
+    return factSheet.qualitySeal === 'BROKEN' ? 'BROKEN_QUALITY_SEAL' : factSheet.qualitySeal;
   }
 
   @ResolveField('lifecycle')

@@ -10,6 +10,18 @@ import { FactSheetEvent, FactSheetService } from './fact-sheet.service';
 const NATIVE_FIELD_PATHS = new Set(['/name', '/description', '/externalId', '/lifecycle']);
 type PrismaTx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
 
+export interface UpdateFactSheetOptions {
+  /** Optimistic-concurrency check: if provided, must match the fact sheet's current `rev` or the update is rejected. */
+  rev?: number;
+  /** Accepted for real-contract compatibility; not persisted anywhere (no confirmed real semantics beyond "an audit comment"). */
+  comment?: string;
+  /** Runs every patch's validation, then rolls back — nothing is persisted. Returns the pre-update fact sheet unchanged. */
+  validateOnly?: boolean;
+}
+
+/** Internal control-flow signal: thrown inside the transaction to force a rollback for validateOnly. */
+class ValidateOnlyAbort extends Error {}
+
 @Injectable()
 export class FactSheetPatchService {
   constructor(
@@ -19,39 +31,58 @@ export class FactSheetPatchService {
     private readonly factSheetService: FactSheetService,
   ) {}
 
-  async update(id: string, patches: Patch[], actor: JwtClaims) {
+  async update(id: string, patches: Patch[], actor: JwtClaims, options?: UpdateFactSheetOptions) {
     const before = await this.factSheetService.requireById(id);
+
+    if (options?.rev !== undefined && options.rev !== before.rev) {
+      throw new LeanIxException('INVALID_PATCH', `Stale revision: fact sheet is at rev ${before.rev}, patch targeted rev ${options.rev}`, {
+        currentRev: before.rev,
+      });
+    }
+
     const changes: FactSheetEvent['changes'] = [];
     const relationsCreated: FactSheetEvent['relation'][] = [];
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const patch of patches) {
-        if (!['add', 'replace', 'remove'].includes(patch.op)) {
-          throw new LeanIxException('INVALID_PATCH', `Unsupported patch operation "${patch.op}"`);
-        }
-        if (!patch.path || !patch.path.startsWith('/')) {
-          throw new LeanIxException('INVALID_PATCH', `Invalid patch path "${patch.path}"`);
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const patch of patches) {
+          if (!['add', 'replace', 'remove'].includes(patch.op)) {
+            throw new LeanIxException('INVALID_PATCH', `Unsupported patch operation "${patch.op}"`);
+          }
+          if (!patch.path || !patch.path.startsWith('/')) {
+            throw new LeanIxException('INVALID_PATCH', `Invalid patch path "${patch.path}"`);
+          }
+
+          if (NATIVE_FIELD_PATHS.has(patch.path)) {
+            await this.applyNativeFieldPatch(tx, id, patch, changes);
+          } else if (patch.path.startsWith('/lifecycle/')) {
+            await this.applyLifecyclePhasePatch(tx, id, patch, changes);
+          } else if (patch.path === '/qualitySeal') {
+            await this.applyQualitySealPatch(tx, id, patch, changes);
+          } else if (patch.path === '/tags' || patch.path.startsWith('/tags/')) {
+            await this.applyTagPatch(tx, id, patch);
+          } else if (patch.path.startsWith('/rel')) {
+            const created = await this.applyRelationPatch(tx, id, before.type.technicalKey, patch);
+            if (created) relationsCreated.push(created);
+          } else {
+            await this.applyCustomAttributePatch(tx, id, before.type.id, patch);
+          }
         }
 
-        if (NATIVE_FIELD_PATHS.has(patch.path)) {
-          await this.applyNativeFieldPatch(tx, id, patch, changes);
-        } else if (patch.path.startsWith('/lifecycle/')) {
-          await this.applyLifecyclePhasePatch(tx, id, patch, changes);
-        } else if (patch.path === '/qualitySeal') {
-          await this.applyQualitySealPatch(tx, id, patch, changes);
-        } else if (patch.path === '/tags' || patch.path.startsWith('/tags/')) {
-          await this.applyTagPatch(tx, id, patch);
-        } else if (patch.path.startsWith('/rel')) {
-          const created = await this.applyRelationPatch(tx, id, before.type.technicalKey, patch);
-          if (created) relationsCreated.push(created);
-        } else {
-          await this.applyCustomAttributePatch(tx, id, before.type.id, patch);
+        await tx.factSheet.update({ where: { id }, data: { updatedBy: actor.sub, rev: { increment: 1 } } });
+        await this.factSheetService.recalculateCompletionWithinTx(tx, id, before.typeId);
+
+        if (options?.validateOnly) {
+          // Every patch validated successfully — abort the transaction so nothing is written.
+          throw new ValidateOnlyAbort();
         }
+      }, INTERACTIVE_TX_OPTIONS);
+    } catch (err) {
+      if (err instanceof ValidateOnlyAbort) {
+        return before;
       }
-
-      await tx.factSheet.update({ where: { id }, data: { updatedBy: actor.sub } });
-      await this.factSheetService.recalculateCompletionWithinTx(tx, id, before.typeId);
-    }, INTERACTIVE_TX_OPTIONS);
+      throw err;
+    }
 
     const after = await this.factSheetService.requireById(id);
 
@@ -189,9 +220,21 @@ export class FactSheetPatchService {
       throw new LeanIxException('INVALID_PATCH', 'remove is not supported for path "/qualitySeal"');
     }
     const normalized = String(patch.value).toUpperCase();
-    const qualitySeal = normalized === 'APPROVE' || normalized === 'APPROVED' ? 'APPROVED' : normalized === 'BROKEN' ? 'BROKEN' : null;
+    const qualitySeal =
+      normalized === 'APPROVE' || normalized === 'APPROVED'
+        ? 'APPROVED'
+        : normalized === 'BROKEN' || normalized === 'BROKEN_QUALITY_SEAL'
+          ? 'BROKEN'
+          : normalized === 'DRAFT'
+            ? 'DRAFT'
+            : normalized === 'REJECT' || normalized === 'REJECTED'
+              ? 'REJECTED'
+              : null;
     if (!qualitySeal) {
-      throw new LeanIxException('INVALID_PATCH', `Invalid qualitySeal value "${patch.value}" — expected APPROVED/approve or BROKEN/broken`);
+      throw new LeanIxException(
+        'INVALID_PATCH',
+        `Invalid qualitySeal value "${patch.value}" — expected one of APPROVED/approve, BROKEN/broken, DRAFT, REJECTED/reject`,
+      );
     }
 
     const current = await tx.factSheet.findUniqueOrThrow({ where: { id } });

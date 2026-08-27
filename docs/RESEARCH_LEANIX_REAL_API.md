@@ -86,6 +86,32 @@ Source: `github.com/leanix-public/integration-api-examples` (LeanIX's own public
   - **This mock stores `processors` as opaque JSON and never interprets it** — actual sync-run processing (`ldif.processor.ts`) does its own simpler 1:1 `data.<key>` → fact sheet field mapping, which happens to produce identical results to the real processor's `${data.name}` → `name` expression for the common case (verified: the real `BasicConnector-CreateApplications_and_relations` example's `updates` block does nothing more than what our direct mapping already does). Building a real expression-evaluation engine (parsing `${content.id}`, `${data.x}`, value-mapping tables) to properly interpret arbitrary processor configs is a materially bigger feature than anything else fixed this session — not attempted. The Swagger example for `POST .../configurations` now shows the *real* shape (for accuracy/documentation), even though this mock doesn't act on it.
   - Also confirmed real LDIF payloads include a top-level `customFields: {}` object not in the original spec — added to the `LDIF` type as an accepted-and-ignored passthrough field (no confirmed real semantics to replicate).
 
+## 6. Validated against an external "spec validation analysis" document (2026-08-27)
+
+User provided `LeanIX_Mock_Spec_Validation_Analysis.md` (their own review of ChatGPT/Gemini feedback against the original spec) and asked me to independently validate it, since it flagged its own uncertainty in several places (it claims some SAP Help Portal pages were unreadable JS/SVG shells while claiming clean extracted content from others — an internal inconsistency worth distrusting). Re-verified every claim against primary sources directly (not the document's summary) — fetched raw `github.com/leanix/leanix-reporting/AI_AGENT_GUIDE.md` and cross-checked via DeepWiki/search.
+
+**Confirmed TRUE, HIGH confidence (direct quotes from LeanIX's own official SDK guide) — FIXED, live-verified:**
+- **`BaseFactSheet` interface + inline fragments are real**: *"All fact sheet types extend the GraphQL interface `BaseFactSheet`, which defines the common fields: id, name, displayName, and type."* Relation targets return `BaseFactSheet`; concrete-type fields need `... on Application { businessCriticality }`. This directly contradicts the flat-`FactSheet`-type simplification chosen in Phase 1 (following "Appendix A is canonical" literally) — see §7 below for the fix.
+- **`lxState` has 4 values, not 2**: `APPROVED`, `BROKEN_QUALITY_SEAL`, `DRAFT`, `REJECTED` (quoted directly, also used as a facet filter value). Fixed: `QualitySeal` enum now has all 4 (was `BROKEN`/`APPROVED` only); `/qualitySeal` patch accepts `DRAFT`/`REJECTED`/`reject` too.
+- **`upsertRelation`/`deleteRelation` are real dedicated mutations** (quoted from example code comments). Fixed: added both as GraphQL mutations, alongside the existing (still fully supported) patch-based relation management on `updateFactSheet`. Real argument names beyond "from, to, type" weren't confirmed — best-effort naming (`from: ID!, to: ID!, type: String!, description: String`).
+- **`updateFactSheet`'s real signature includes `rev`** (optimistic-concurrency revision number), plus optional `comment` and `validateOnly` — found via a second independent source (DeepWiki extraction), not in the original analysis document. Fixed: added `rev: Int!` field to `FactSheet` (increments on every write — create/patch/archive/revive/LDIF update/relation change), `updateFactSheet(rev: Int, ...)` rejects a stale `rev` with `INVALID_PATCH`; `comment: String` accepted but not persisted (no confirmed storage semantics); `validateOnly: Boolean` runs every patch's validation inside the transaction then intentionally rolls back, returning the fact sheet unchanged.
+
+**Corroborated, medium-high confidence — FIXED:**
+- **`createFactSheet(input, patches)` accepting both simultaneously** — confirmed by 2 independent secondary sources. Fixed: `createFactSheet` now takes an optional `patches: [Patch!]` argument, applied right after creation via the same (already-tested) patch logic `updateFactSheet` uses — no duplicated business logic.
+
+**Could NOT verify — explicitly NOT acted on:**
+- `completion` as `{percentage: Float}` object vs. this mock's plain `Float` — no source gave a clean confirmed schema quote (one ambiguous community snippet, DeepWiki couldn't confirm either way).
+- `permissions {create, read, update, delete, self}` — zero corroboration found anywhere.
+- `FACT_SHEET_DELETED` webhook event, exact webhook payload shape, PascalCase event naming — the analysis document itself already correctly flags these as unverified; nothing found here changes that.
+
+**Real bug found and fixed while implementing `upsertRelation`**: the initial implementation did a deep nested read (source + target's full field-resolver data) *inside* the database transaction alongside the write — live-testing against Neon, this blew past the 20s interactive-transaction timeout. Fixed by moving the heavy reads outside the transaction (matching the pattern already used everywhere else in the codebase) — the transaction now only does the lightweight write.
+
+All of the above live-verified via curl against the running server + Neon, plus new tests (4 unit, 1 large e2e covering all five features in sequence). Full suite: 50/50 (35 unit + 15 e2e).
+
+## 7. `BaseFactSheet` interface + inline fragments — in progress
+
+The confirmed-real biggest architectural gap from §6. Not yet implemented as of this write-up — see the next commit(s) for the schema conversion (concrete per-type GraphQL types implementing a `BaseFactSheet` interface, `__resolveType`, inline-fragment support).
+
 ## What wasn't re-verified in this pass (out of scope / lower priority given time)
 
 - Full real GraphQL SDL (types, all fields) — not obtainable without workspace access (GraphiQL requires admin login to a real workspace); relied on quoted example queries instead of the full schema.

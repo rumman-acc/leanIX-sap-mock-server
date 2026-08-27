@@ -138,7 +138,7 @@ export class LdifProcessor {
       });
       this.emitEvent('FACT_SHEET_CREATED', factSheetId, type.technicalKey, created.name, externalId);
     } else {
-      const updateData: Record<string, unknown> = { updatedBy: TECHNICAL_USER_ID };
+      const updateData: Record<string, unknown> = { updatedBy: TECHNICAL_USER_ID, rev: { increment: 1 } };
       if (ldif.processingMode === 'full') {
         updateData.description = native.description ?? null;
         updateData.lifecycle = native.lifecycle ?? null;

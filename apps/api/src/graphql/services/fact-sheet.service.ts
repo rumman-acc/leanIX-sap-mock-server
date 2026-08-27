@@ -211,7 +211,7 @@ export class FactSheetService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.factSheet.update({
         where: { id },
-        data: { status: 'ARCHIVED', trashBin: true, archivedAt, autoDeleteAt, updatedBy: actor.sub },
+        data: { status: 'ARCHIVED', trashBin: true, archivedAt, autoDeleteAt, updatedBy: actor.sub, rev: { increment: 1 } },
         include: FACT_SHEET_INCLUDE,
       });
       await tx.trashBinEntry.upsert({
@@ -245,7 +245,7 @@ export class FactSheetService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.factSheet.update({
         where: { id },
-        data: { status: 'ACTIVE', trashBin: false, archivedAt: null, autoDeleteAt: null, updatedBy: actor.sub },
+        data: { status: 'ACTIVE', trashBin: false, archivedAt: null, autoDeleteAt: null, updatedBy: actor.sub, rev: { increment: 1 } },
         include: FACT_SHEET_INCLUDE,
       });
       await tx.trashBinEntry.deleteMany({ where: { factSheetId: id } });
@@ -274,6 +274,56 @@ export class FactSheetService {
       await tx.syncLog.updateMany({ where: { factSheetId: id }, data: { factSheetId: null } });
       await tx.trashBinEntry.deleteMany({ where: { factSheetId: id } });
       await tx.factSheet.delete({ where: { id } });
+    }, INTERACTIVE_TX_OPTIONS);
+
+    return { id, success: true };
+  }
+
+  /**
+   * Real, confirmed dedicated relation mutation (docs/RESEARCH_LEANIX_REAL_API.md §6) —
+   * an alternative to relation patches on updateFactSheet, which remain fully supported too.
+   */
+  async upsertRelation(from: string, to: string, relationTypeKey: string, description: string | undefined, actor: JwtClaims) {
+    const relationType = await this.metaModel.requireRelationTypeByKey(relationTypeKey);
+    // Fetch source/target (with full includes for the field resolvers) OUTSIDE the transaction —
+    // doing it inside, on top of the write, previously blew past the transaction timeout under
+    // real network latency (found live-testing this against Neon).
+    const [source, target] = await Promise.all([this.requireById(from), this.requireById(to)]);
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const relation = await tx.relation.upsert({
+        where: { relationTypeId_sourceId_targetId: { relationTypeId: relationType.id, sourceId: from, targetId: to } },
+        update: { description },
+        create: { relationTypeId: relationType.id, sourceId: from, targetId: to, description },
+      });
+      await tx.factSheet.update({ where: { id: from }, data: { rev: { increment: 1 } } });
+      return relation;
+    }, INTERACTIVE_TX_OPTIONS);
+
+    this.events.emit('factsheet.event', {
+      eventType: 'RELATION_CREATED',
+      factSheet: { id: source.id, type: source.type.technicalKey, name: source.name, externalId: source.externalId },
+      actor,
+      changes: [],
+      relation: {
+        id: created.id,
+        type: relationType.technicalKey,
+        target: { id: target.id, type: target.type.technicalKey, name: target.name, externalId: target.externalId },
+      },
+    } satisfies FactSheetEvent);
+
+    return { id: created.id, description: created.description, relationType, source, target };
+  }
+
+  async deleteRelation(id: string) {
+    const relation = await this.prisma.relation.findUnique({ where: { id } });
+    if (!relation) {
+      throw new LeanIxException('RELATION_NOT_FOUND', `Relation "${id}" does not exist`, { id });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.relation.delete({ where: { id } });
+      await tx.factSheet.update({ where: { id: relation.sourceId }, data: { rev: { increment: 1 } } });
     }, INTERACTIVE_TX_OPTIONS);
 
     return { id, success: true };

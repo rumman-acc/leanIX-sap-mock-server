@@ -194,4 +194,56 @@ describe('FactSheetPatchService', () => {
       );
     });
   });
+
+  describe('rev/validateOnly (real LeanIX contract — see docs/RESEARCH_LEANIX_REAL_API.md §6)', () => {
+    function buildServiceWithRev(prisma: ReturnType<typeof buildPrismaMock>, rev: number) {
+      const factSheetService = {
+        requireById: jest.fn().mockResolvedValue({ id: 'fs-1', typeId: 'type-Application', type: { technicalKey: 'Application' }, rev }),
+        recalculateCompletionWithinTx: jest.fn().mockResolvedValue(undefined),
+      };
+      const events = new EventEmitter2();
+      const service = new FactSheetPatchService(prisma as any, {} as any, events, factSheetService as any);
+      return { service, factSheetService };
+    }
+
+    it('rejects a stale rev without touching the database', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildServiceWithRev(prisma, 5);
+
+      await expect(
+        service.update('fs-1', [{ op: 'replace', path: '/name', value: 'X' }], actor, { rev: 1 }),
+      ).rejects.toMatchObject({ code: 'INVALID_PATCH' });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('accepts a matching rev and increments it on write', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildServiceWithRev(prisma, 5);
+
+      await service.update('fs-1', [{ op: 'replace', path: '/name', value: 'New Name' }], actor, { rev: 5 });
+
+      expect(prisma.factSheet.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ rev: { increment: 1 } }) }),
+      );
+    });
+
+    it('validateOnly runs patch validation then rolls back, returning the fact sheet unchanged', async () => {
+      const prisma = buildPrismaMock();
+      const { service, factSheetService } = buildServiceWithRev(prisma, 5);
+
+      const result = await service.update('fs-1', [{ op: 'replace', path: '/name', value: 'Would Change' }], actor, { validateOnly: true });
+
+      // Returns the pre-update snapshot (from requireById), not a post-patch object.
+      expect(result).toEqual(await factSheetService.requireById.mock.results[0].value);
+    });
+
+    it('validateOnly still surfaces a real validation failure (e.g. empty name)', async () => {
+      const prisma = buildPrismaMock();
+      const { service } = buildServiceWithRev(prisma, 5);
+
+      await expect(
+        service.update('fs-1', [{ op: 'replace', path: '/name', value: '' }], actor, { validateOnly: true }),
+      ).rejects.toMatchObject({ code: 'INVALID_PATCH' });
+    });
+  });
 });

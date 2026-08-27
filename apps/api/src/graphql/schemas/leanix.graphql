@@ -19,9 +19,13 @@ enum FactSheetStatus {
   ARCHIVED
 }
 
+# Real LeanIX has 4 quality-seal states (confirmed via lxState facet values in LeanIX's
+# official leanix-reporting SDK guide), not just 2 — see docs/RESEARCH_LEANIX_REAL_API.md §6.
 enum QualitySeal {
   BROKEN
   APPROVED
+  DRAFT
+  REJECTED
 }
 
 enum SubscriptionType {
@@ -160,6 +164,9 @@ type FactSheet {
   # ("APPROVED" / "BROKEN_QUALITY_SEAL") — see docs/RESEARCH_LEANIX_REAL_API.md §4.
   # Read-only derived value; patch /qualitySeal to change it (updates both fields).
   lxState: String!
+  # Optimistic-concurrency revision counter, confirmed real (used in updateFactSheet's real
+  # signature) — see docs/RESEARCH_LEANIX_REAL_API.md §6. Increments on every update.
+  rev: Int!
   completion: Float!
   status: FactSheetStatus!
   trashBin: Boolean!
@@ -344,11 +351,23 @@ type Query {
 # --- Mutations -----------------------------------------------
 
 type Mutation {
-  createFactSheet(input: BaseFactSheetInput!): FactSheetPayload!
-  updateFactSheet(id: ID!, patches: [Patch!]!): FactSheetPayload!
+  # `patches` is real LeanIX's actual createFactSheet contract (create + apply patches in one
+  # call) — see docs/RESEARCH_LEANIX_REAL_API.md §6. Optional: omit for this mock's original form.
+  createFactSheet(input: BaseFactSheetInput!, patches: [Patch!]): FactSheetPayload!
+  # `rev`/`comment`/`validateOnly` match real LeanIX's confirmed updateFactSheet signature — see
+  # docs/RESEARCH_LEANIX_REAL_API.md §6. All optional: omit `rev` to skip the optimistic-
+  # concurrency check (this mock's original behavior); `validateOnly: true` runs every patch's
+  # validation and then rolls back, returning the fact sheet unchanged if nothing failed.
+  updateFactSheet(id: ID!, rev: Int, patches: [Patch!]!, comment: String, validateOnly: Boolean): FactSheetPayload!
   archiveFactSheet(id: ID!): FactSheetPayload!
   reviveFactSheet(id: ID!): FactSheetPayload!
   deleteFactSheet(id: ID!): DeletePayload!
+  # Real, confirmed dedicated relation mutations (docs/RESEARCH_LEANIX_REAL_API.md §6) — an
+  # alternative to relation patches on updateFactSheet, which remain fully supported too.
+  # Real argument names weren't independently confirmed beyond "from, to, type" — best-effort
+  # naming here.
+  upsertRelation(from: ID!, to: ID!, type: String!, description: String): Relation!
+  deleteRelation(id: ID!): DeletePayload!
 }
 
 type FactSheetPayload {

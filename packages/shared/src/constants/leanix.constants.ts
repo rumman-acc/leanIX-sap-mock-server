@@ -36,9 +36,12 @@ export const FACT_SHEET_STATUS = {
   ARCHIVED: 'ARCHIVED',
 } as const;
 
+// 4 states confirmed via real LeanIX's lxState facet values — see docs/RESEARCH_LEANIX_REAL_API.md §6.
 export const QUALITY_SEAL = {
   BROKEN: 'BROKEN',
   APPROVED: 'APPROVED',
+  DRAFT: 'DRAFT',
+  REJECTED: 'REJECTED',
 } as const;
 
 export const LIFECYCLE_PHASES = ['plan', 'phaseIn', 'active', 'phaseOut', 'endOfLife'] as const;

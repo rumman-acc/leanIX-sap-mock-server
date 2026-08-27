@@ -140,6 +140,71 @@ describe('GraphQL API (e2e)', () => {
     expect(reviveRes.body.data.reviveFactSheet.factSheet.trashBin).toBe(false);
   }, 120000); // 5 sequential mutations against a remote DB (Neon) — well over the 60s default
 
+  it(
+    'supports createFactSheet(input, patches), rev-based optimistic concurrency, validateOnly, upsertRelation/deleteRelation, and DRAFT/REJECTED quality seals — all confirmed real-LeanIX contract additions (docs/RESEARCH_LEANIX_REAL_API.md §6)',
+    async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($input: BaseFactSheetInput!, $patches: [Patch!]) { createFactSheet(input: $input, patches: $patches) { factSheet { id description rev } } }`,
+          variables: {
+            input: { name: 'Rev/Relation E2E App', type: 'Application' },
+            patches: [{ op: 'replace', path: '/description', value: 'Set via createFactSheet patches' }],
+          },
+        });
+
+      const created = createRes.body.data.createFactSheet.factSheet;
+      expect(created.description).toBe('Set via createFactSheet patches');
+      expect(created.rev).toBe(2); // 1 from create, +1 from the patch
+
+      const staleRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($id: ID!, $rev: Int, $patches: [Patch!]!) { updateFactSheet(id: $id, rev: $rev, patches: $patches) { factSheet { rev } } }`,
+          variables: { id: created.id, rev: 999, patches: [{ op: 'replace', path: '/name', value: 'Should Not Apply' }] },
+        });
+      expect(staleRes.body.errors[0].extensions.code).toBe('INVALID_PATCH');
+
+      const validateOnlyRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($id: ID!, $patches: [Patch!]!) { updateFactSheet(id: $id, patches: $patches, validateOnly: true) { factSheet { name rev } } }`,
+          variables: { id: created.id, patches: [{ op: 'replace', path: '/name', value: 'Should Not Persist' }] },
+        });
+      expect(validateOnlyRes.body.data.updateFactSheet.factSheet.rev).toBe(2); // unchanged — rolled back
+
+      const relRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($from: ID!, $to: ID!) { upsertRelation(from: $from, to: $to, type: "relApplicationToITComponent") { id relationType { technicalKey } target { id } } }`,
+          variables: { from: created.id, to: 'fs-itc-aws-ec2' },
+        });
+      expect(relRes.body.data.upsertRelation.relationType.technicalKey).toBe('relApplicationToITComponent');
+      const relationId = relRes.body.data.upsertRelation.id;
+
+      const deleteRelRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ query: `mutation($id: ID!) { deleteRelation(id: $id) { id success } }`, variables: { id: relationId } });
+      expect(deleteRelRes.body.data.deleteRelation.success).toBe(true);
+
+      const draftRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($id: ID!, $patches: [Patch!]!) { updateFactSheet(id: $id, patches: $patches) { factSheet { qualitySeal lxState } } }`,
+          variables: { id: created.id, patches: [{ op: 'replace', path: '/qualitySeal', value: 'reject' }] },
+        });
+      expect(draftRes.body.data.updateFactSheet.factSheet.qualitySeal).toBe('REJECTED');
+      expect(draftRes.body.data.updateFactSheet.factSheet.lxState).toBe('REJECTED');
+    },
+    120000,
+  );
+
   it('supports GraphQL introspection', async () => {
     const res = await request(app.getHttpServer())
       .post('/services/pathfinder/v1/graphql')

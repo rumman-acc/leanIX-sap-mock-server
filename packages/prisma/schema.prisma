@@ -93,6 +93,9 @@ model FactSheet {
   lifecycle     Json?
 
   qualitySeal   String   @default("BROKEN") @map("quality_seal")
+  // Optimistic-concurrency revision counter — real LeanIX confirmed to have this in
+  // updateFactSheet's signature, see docs/RESEARCH_LEANIX_REAL_API.md §6.
+  rev           Int      @default(1)
   completion    Float    @default(0.0)
 
   status        String   @default("ACTIVE")

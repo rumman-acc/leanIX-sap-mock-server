@@ -198,6 +198,18 @@ Full suite re-verified: 45/45 (31 unit + 14 e2e) after all of the above.
 
 **Second Render attempt still failed, same root cause escalated further**: `Option 'moduleResolution=node10' has been removed` — Render's `npm install` resolved a TypeScript newer than even the local 5.9.3 that validated the first fix (the IDE's own inline diagnostics had already been warning `node10` "will stop functioning in TypeScript 7.0"; Render apparently landed on something at/past that line). Chasing specific legacy value names (`node` → `node10` → ???) across a caret-ranged devDependency is a losing game. **Real fix**: removed `moduleResolution` entirely from all three tsconfig.json files instead of renaming it again — when `module: "commonjs"` and `moduleResolution` is unspecified, TypeScript auto-selects the equivalent classic resolution algorithm on its own, so there's no version-specific value name left to break on a future `npm install`. Verified locally (same 5.9.3): all three packages (`shared`, `prisma`, `mcp`) plus the full API build succeed with the option removed; full suite 45/45 again.
 
+## 4i. `BaseFactSheet` interface + inline fragments — DONE (2026-08-28)
+
+Completed the last item of the user-approved 5-item validation fix batch (§4h). Full details: `docs/RESEARCH_LEANIX_REAL_API.md` §7.
+
+Summary: `type FactSheet` in `leanix.graphql` became `interface BaseFactSheet` (identical field list), with 9 concrete implementing types added (one per meta-model fact sheet type technicalKey), `Application` additionally getting named `functionalSuitability`/`technicalSuitability`/`businessCriticality` fields (matching real LeanIX's inline-fragment shape; the generic `attributes` array stays too — support both). Every resolver return position that used the concrete `FactSheet` type now returns `BaseFactSheet` (`Query.factSheet`, `FactSheetEdge.node`, `FactSheetPayload.factSheet`, `Relation.source`/`target`).
+
+Key implementation finding: NestJS's schema-first `@Resolver('X')`/`@ResolveField()` classes don't fan field resolvers out from an interface to its implementing types — each concrete type needs its own resolver map entry. Rather than write 9 near-duplicate resolver classes, extracted the shared field logic (`type`, `lxState`, `lifecycle`, `tags`, `subscriptions`, `attributes`, `relations`) as plain functions in the new `apps/api/src/graphql/resolvers/base-fact-sheet.fields.ts` and merged them into every concrete type's resolver map via the raw `resolvers` object already passed to `GraphQLModule.forRoot()` (`apps/api/src/graphql/graphql.module.ts`) — previously only used for the `DateTime`/`JSON` scalars. `FactSheetResolver` itself shrank to just its Query/Mutation methods (no more `@ResolveField`s, no more type-name binding).
+
+Tested: all 50 pre-existing tests pass completely unchanged (none of them needed edits — they only ever queried interface-common fields). Added one new e2e test verifying `__type(name: "BaseFactSheet")` introspection (`kind: INTERFACE`, all 9 `possibleTypes`), an `... on Application { functionalSuitability ... }` inline fragment read/patch/re-read round trip, and a non-Application type (`ITComponent`) resolving its correct concrete `__typename` through `allFactSheets`. Full suite: 51/51 (35 unit + 16 e2e).
+
+This closes out the entire user-approved "everything confirmed, in order" batch from §4h.
+
 ## 5. Next Steps (for a future session)
 
 Everything in spec sections 1-17 (Phases 1-3) is implemented and live-verified; Phase 4 is done except the two items in §4 above. If picking this back up:

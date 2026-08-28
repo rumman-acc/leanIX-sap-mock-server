@@ -5,9 +5,11 @@ import { JwtClaims } from '@leanix-mock/shared';
 import { FactSheetService } from '../services/fact-sheet.service';
 import { FactSheetPatchService } from '../services/fact-sheet-patch.service';
 
-type FactSheetRecord = Awaited<ReturnType<FactSheetService['requireById']>>;
-
-@Resolver('FactSheet')
+// Field resolvers for the fact sheet's common (BaseFactSheet interface) fields live in
+// base-fact-sheet.fields.ts, registered per concrete implementing type via the raw `resolvers` map
+// passed to GraphQLModule.forRoot() — see docs/RESEARCH_LEANIX_REAL_API.md §7 for why. This class
+// only handles Query/Mutation, which don't need a type-name resolver context.
+@Resolver()
 export class FactSheetResolver {
   constructor(
     private readonly factSheetService: FactSheetService,
@@ -89,73 +91,6 @@ export class FactSheetResolver {
   @Mutation('deleteRelation')
   deleteRelation(@Args('id') id: string) {
     return this.factSheetService.deleteRelation(id);
-  }
-
-  @ResolveField('type')
-  type(@Parent() factSheet: FactSheetRecord) {
-    return factSheet.type.technicalKey;
-  }
-
-  @ResolveField('lxState')
-  lxState(@Parent() factSheet: FactSheetRecord) {
-    // Real LeanIX's lxState naming only diverges from qualitySeal for BROKEN (-> BROKEN_QUALITY_SEAL);
-    // APPROVED/DRAFT/REJECTED are spelled the same in both — see docs/RESEARCH_LEANIX_REAL_API.md §6.
-    return factSheet.qualitySeal === 'BROKEN' ? 'BROKEN_QUALITY_SEAL' : factSheet.qualitySeal;
-  }
-
-  @ResolveField('lifecycle')
-  lifecycle(@Parent() factSheet: FactSheetRecord) {
-    const lifecycle = factSheet.lifecycle as { asString?: string; phases?: unknown[] } | null;
-    if (!lifecycle) return null;
-    return { asString: lifecycle.asString ?? null, phases: lifecycle.phases ?? [] };
-  }
-
-  @ResolveField('tags')
-  tags(@Parent() factSheet: FactSheetRecord) {
-    return (factSheet.tags ?? []).map((assignment) => ({
-      id: assignment.tag.id,
-      name: assignment.tag.name,
-      color: assignment.tag.color,
-      group: assignment.tag.group,
-    }));
-  }
-
-  @ResolveField('subscriptions')
-  subscriptions(@Parent() factSheet: FactSheetRecord) {
-    return (factSheet.subscriptions ?? []).map((sub) => ({
-      id: sub.id,
-      type: sub.type,
-      roles: sub.roles,
-      user: { id: sub.userId, name: sub.userName, email: sub.userEmail },
-    }));
-  }
-
-  @ResolveField('attributes')
-  attributes(@Parent() factSheet: FactSheetRecord) {
-    return (factSheet.attributes ?? []).map((av) => ({
-      id: av.id,
-      value: av.value,
-      attribute: av.attribute,
-    }));
-  }
-
-  @ResolveField('relations')
-  relations(@Parent() factSheet: FactSheetRecord) {
-    const asSource = (factSheet.sourceRelations ?? []).map((relation) => ({
-      id: relation.id,
-      description: relation.description,
-      relationType: relation.relationType,
-      source: factSheet,
-      target: relation.target,
-    }));
-    const asTarget = (factSheet.targetRelations ?? []).map((relation) => ({
-      id: relation.id,
-      description: relation.description,
-      relationType: relation.relationType,
-      source: relation.source,
-      target: factSheet,
-    }));
-    return [...asSource, ...asTarget];
   }
 }
 

@@ -205,6 +205,105 @@ describe('GraphQL API (e2e)', () => {
     120000,
   );
 
+  it(
+    'exposes fact sheets as a BaseFactSheet interface with concrete implementing types and inline fragments (docs/RESEARCH_LEANIX_REAL_API.md §7)',
+    async () => {
+      const introspectionRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `{ __type(name: "BaseFactSheet") { kind possibleTypes { name } } }`,
+        });
+
+      expect(introspectionRes.body.data.__type.kind).toBe('INTERFACE');
+      const possibleTypeNames = introspectionRes.body.data.__type.possibleTypes.map((t: { name: string }) => t.name);
+      expect(possibleTypeNames).toEqual(
+        expect.arrayContaining([
+          'Application',
+          'BusinessCapability',
+          'ITComponent',
+          'Provider',
+          'Process',
+          'Project',
+          'DataObject',
+          'Interface',
+          'TechnicalStack',
+        ]),
+      );
+
+      const createRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($input: BaseFactSheetInput!) { createFactSheet(input: $input) { factSheet { id } } }`,
+          variables: { input: { name: 'Interface Fragment E2E App', type: 'Application' } },
+        });
+      const createdId = createRes.body.data.createFactSheet.factSheet.id;
+
+      const fragmentRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `query($id: ID!) {
+            factSheet(id: $id) {
+              id
+              type
+              __typename
+              ... on Application {
+                functionalSuitability
+                technicalSuitability
+                businessCriticality
+              }
+            }
+          }`,
+          variables: { id: createdId },
+        });
+
+      expect(fragmentRes.status).toBe(200);
+      const node = fragmentRes.body.data.factSheet;
+      expect(node.__typename).toBe('Application');
+      expect(node.type).toBe('Application');
+      // Freshly created, unset custom attributes resolve to null rather than erroring.
+      expect(node.functionalSuitability).toBeNull();
+      expect(node.technicalSuitability).toBeNull();
+      expect(node.businessCriticality).toBeNull();
+
+      const patchRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `mutation($id: ID!, $patches: [Patch!]!) { updateFactSheet(id: $id, patches: $patches) { factSheet { id } } }`,
+          variables: {
+            id: createdId,
+            patches: [{ op: 'replace', path: '/functionalSuitability', value: 'perfect' }],
+          },
+        });
+      expect(patchRes.status).toBe(200);
+
+      const afterPatchRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `query($id: ID!) { factSheet(id: $id) { ... on Application { functionalSuitability } } }`,
+          variables: { id: createdId },
+        });
+      expect(afterPatchRes.body.data.factSheet.functionalSuitability).toBe('perfect');
+
+      // A non-Application concrete type has no Application-only fields, and the interface's
+      // common fields still resolve through the same code path across every implementing type.
+      const nonAppRes = await request(app.getHttpServer())
+        .post('/services/pathfinder/v1/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          query: `query { allFactSheets(filter: { facetFilters: [{ facetKey: "FactSheetTypes", operator: OR, keys: ["ITComponent"] }] }, first: 1) { edges { node { id type __typename lxState } } } }`,
+        });
+      const itNode = nonAppRes.body.data.allFactSheets.edges[0].node;
+      expect(itNode.__typename).toBe('ITComponent');
+      expect(itNode.type).toBe('ITComponent');
+    },
+    120000,
+  );
+
   it('supports GraphQL introspection', async () => {
     const res = await request(app.getHttpServer())
       .post('/services/pathfinder/v1/graphql')

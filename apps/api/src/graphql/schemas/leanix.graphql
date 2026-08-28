@@ -151,7 +151,11 @@ enum PatchOperation {
 
 # --- Types ---------------------------------------------------
 
-type FactSheet {
+# Real LeanIX exposes fact sheets as a `BaseFactSheet` GraphQL interface with one concrete
+# implementing type per fact sheet type technicalKey (Application, ITComponent, ...), queried
+# either via the interface's common fields or via inline fragments for type-specific fields
+# (`... on Application { functionalSuitability } `) — see docs/RESEARCH_LEANIX_REAL_API.md §7.
+interface BaseFactSheet {
   id: ID!
   name: String!
   type: String!
@@ -166,6 +170,245 @@ type FactSheet {
   lxState: String!
   # Optimistic-concurrency revision counter, confirmed real (used in updateFactSheet's real
   # signature) — see docs/RESEARCH_LEANIX_REAL_API.md §6. Increments on every update.
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type Application implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+  # Named fields matching real LeanIX's inline-fragment shape for Application — see
+  # docs/RESEARCH_LEANIX_REAL_API.md §7. Also available generically via `attributes` (support both).
+  functionalSuitability: String
+  technicalSuitability: String
+  businessCriticality: String
+}
+
+type BusinessCapability implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type ITComponent implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type Provider implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type Process implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type Project implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type DataObject implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type Interface implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+}
+
+type TechnicalStack implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
   rev: Int!
   completion: Float!
   status: FactSheetStatus!
@@ -249,8 +492,8 @@ type AllowedValue {
 type Relation {
   id: ID!
   relationType: RelationType!
-  source: FactSheet!
-  target: FactSheet!
+  source: BaseFactSheet!
+  target: BaseFactSheet!
   description: String
 }
 
@@ -303,7 +546,7 @@ type FacetResultItem {
 }
 
 type FactSheetEdge {
-  node: FactSheet!
+  node: BaseFactSheet!
   cursor: String!
 }
 
@@ -336,7 +579,7 @@ type SearchResult {
 # --- Queries -------------------------------------------------
 
 type Query {
-  factSheet(id: ID!): FactSheet
+  factSheet(id: ID!): BaseFactSheet
   allFactSheets(
     filter: FilterInput
     sort: SortInput
@@ -371,7 +614,7 @@ type Mutation {
 }
 
 type FactSheetPayload {
-  factSheet: FactSheet
+  factSheet: BaseFactSheet
   errors: [Error!]
 }
 

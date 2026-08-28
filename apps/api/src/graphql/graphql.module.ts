@@ -16,6 +16,7 @@ import {
 import { MetaModelResolver } from './resolvers/meta-model.resolver';
 import { SearchResolver } from './resolvers/search.resolver';
 import { formatGraphQLError } from './graphql-error-formatter';
+import { baseFactSheetResolvers } from './resolvers/base-fact-sheet.fields';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { formatGraphQLError } from './graphql-error-formatter';
       driver: ApolloDriver,
       path: '/services/pathfinder/v1/graphql',
       typePaths: [join(__dirname, 'schemas/**/*.graphql')],
-      resolvers: { DateTime: DateTimeResolver, JSON: JSONResolver },
+      resolvers: { DateTime: DateTimeResolver, JSON: JSONResolver, ...baseFactSheetResolvers },
       introspection: true,
       playground: false,
       // Cast avoids a dual-package-hazard type mismatch between @apollo/server's cjs/esm builds

@@ -108,9 +108,18 @@ User provided `LeanIX_Mock_Spec_Validation_Analysis.md` (their own review of Cha
 
 All of the above live-verified via curl against the running server + Neon, plus new tests (4 unit, 1 large e2e covering all five features in sequence). Full suite: 50/50 (35 unit + 15 e2e).
 
-## 7. `BaseFactSheet` interface + inline fragments — in progress
+## 7. `BaseFactSheet` interface + inline fragments — DONE
 
-The confirmed-real biggest architectural gap from §6. Not yet implemented as of this write-up — see the next commit(s) for the schema conversion (concrete per-type GraphQL types implementing a `BaseFactSheet` interface, `__resolveType`, inline-fragment support).
+The confirmed-real biggest architectural gap from §6. Implemented:
+
+- `type FactSheet { ... }` converted to `interface BaseFactSheet { ... }` (same field list — all fields previously on `FactSheet` are now the interface's common fields).
+- 9 concrete implementing types added, one per meta-model fact sheet type technicalKey (`Application`, `BusinessCapability`, `ITComponent`, `Provider`, `Process`, `Project`, `DataObject`, `Interface`, `TechnicalStack`) — each declares all interface fields (GraphQL requires implementing types to re-declare them) plus, for `Application` only, three named fields matching real LeanIX's inline-fragment shape: `functionalSuitability`, `technicalSuitability`, `businessCriticality`. These resolve from the same underlying `AttributeValue` rows already exposed generically via `attributes` — both forms work (support both).
+- Every place that returned the concrete `FactSheet` type now returns the `BaseFactSheet` interface: `Query.factSheet`, `FactSheetEdge.node`, `FactSheetPayload.factSheet`, `Relation.source`/`Relation.target`.
+- `__resolveType` resolves via `parent.type.technicalKey`, which already matches the concrete GraphQL type names 1:1 in this meta model — no separate type-name mapping table needed.
+
+**Implementation detail worth recording**: NestJS's schema-first `@Resolver('TypeName')` + `@ResolveField()` classes register field resolvers keyed to one exact type name each — there is no automatic interface-level fan-out to implementing types (confirmed by reading how the resolver map is merged; graphql-js's interface resolver map entry is only meaningful for `__resolveType`). Rather than duplicate the same field-resolution logic (`type`, `lxState`, `lifecycle`, `tags`, `subscriptions`, `attributes`, `relations`) across 9 near-identical resolver classes, it was extracted once as plain functions (`apps/api/src/graphql/resolvers/base-fact-sheet.fields.ts`, no DI needed — they're pure functions of the parent object) and merged into every concrete type's resolver map via the raw `resolvers` object already passed to `GraphQLModule.forRoot()` (previously only used for the `DateTime`/`JSON` scalars).
+
+Verified: all 50 pre-existing tests still pass unchanged (none of them needed to change — every existing query only used interface-common fields, which still resolve identically). Added one new e2e test that checks `__type(name: "BaseFactSheet")` introspection reports `kind: INTERFACE` with all 9 possible types, exercises `... on Application { functionalSuitability ... }` inline fragments (including patching `/functionalSuitability` via `updateFactSheet` and reading it back through the fragment), and confirms a non-Application type (`ITComponent`) resolves its concrete `__typename` correctly through `allFactSheets`.
 
 ## What wasn't re-verified in this pass (out of scope / lower priority given time)
 

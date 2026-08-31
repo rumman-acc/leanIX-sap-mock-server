@@ -30,6 +30,12 @@ services:
       # service (sync: false means Render will NOT read a value from this file) ---
       - key: DATABASE_URL
         sync: false
+      # Direct (non-pooled) connection — required by `prisma migrate deploy` in buildCommand
+      # above (see docs/BUILD_STATUS.md §5: migrations against a PgBouncer-pooled DATABASE_URL
+      # apply DDL but silently fail to record migration history). Same host/credentials as
+      # DATABASE_URL, just without "-pooler" in the hostname and without &pgbouncer=true.
+      - key: DIRECT_DATABASE_URL
+        sync: false
       - key: REDIS_URL
         sync: false
       - key: LEANIX_API_TOKEN

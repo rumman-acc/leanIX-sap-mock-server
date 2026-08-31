@@ -5,6 +5,7 @@ import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin
 import { DateTimeResolver, JSONResolver } from 'graphql-scalars';
 import { join } from 'path';
 import { MetaModelModule } from '../meta-model/meta-model.module';
+import { CommentsModule } from '../comments/comments.module';
 import { FactSheetService } from './services/fact-sheet.service';
 import { FactSheetPatchService } from './services/fact-sheet-patch.service';
 import {
@@ -15,12 +16,14 @@ import {
 } from './resolvers/fact-sheet.resolver';
 import { MetaModelResolver } from './resolvers/meta-model.resolver';
 import { SearchResolver } from './resolvers/search.resolver';
+import { CommentResolver } from './resolvers/comment.resolver';
 import { formatGraphQLError } from './graphql-error-formatter';
 import { baseFactSheetResolvers } from './resolvers/base-fact-sheet.fields';
 
 @Module({
   imports: [
     MetaModelModule,
+    CommentsModule,
     NestGraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       path: '/services/pathfinder/v1/graphql',
@@ -44,6 +47,7 @@ import { baseFactSheetResolvers } from './resolvers/base-fact-sheet.fields';
     RelationTypeFieldResolver,
     MetaModelResolver,
     SearchResolver,
+    CommentResolver,
   ],
   exports: [FactSheetService, FactSheetPatchService],
 })

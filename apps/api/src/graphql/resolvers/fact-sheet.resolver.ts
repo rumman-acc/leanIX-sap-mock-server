@@ -17,18 +17,19 @@ export class FactSheetResolver {
   ) {}
 
   @Query('factSheet')
-  factSheet(@Args('id') id: string) {
-    return this.factSheetService.findById(id);
+  factSheet(@Args('id') id: string, @CurrentUser() user: JwtClaims) {
+    return this.factSheetService.findById(id, user.workspaceId);
   }
 
   @Query('allFactSheets')
   allFactSheets(
-    @Args('filter') filter?: FilterInput,
-    @Args('sort') sort?: SortInput,
-    @Args('first') first?: number,
-    @Args('after') after?: string,
+    @Args('filter') filter: FilterInput | undefined,
+    @Args('sort') sort: SortInput | undefined,
+    @Args('first') first: number | undefined,
+    @Args('after') after: string | undefined,
+    @CurrentUser() user: JwtClaims,
   ) {
-    return this.factSheetService.findMany({ filter, sort, first, after });
+    return this.factSheetService.findMany({ filter, sort, first, after }, user.workspaceId);
   }
 
   @Mutation('createFactSheet')
@@ -73,8 +74,8 @@ export class FactSheetResolver {
   }
 
   @Mutation('deleteFactSheet')
-  deleteFactSheet(@Args('id') id: string) {
-    return this.factSheetService.permanentDelete(id);
+  deleteFactSheet(@Args('id') id: string, @CurrentUser() user: JwtClaims) {
+    return this.factSheetService.permanentDelete(id, user);
   }
 
   @Mutation('upsertRelation')
@@ -89,8 +90,8 @@ export class FactSheetResolver {
   }
 
   @Mutation('deleteRelation')
-  deleteRelation(@Args('id') id: string) {
-    return this.factSheetService.deleteRelation(id);
+  deleteRelation(@Args('id') id: string, @CurrentUser() user: JwtClaims) {
+    return this.factSheetService.deleteRelation(id, user);
   }
 }
 
@@ -99,8 +100,8 @@ export class FactSheetConnectionResolver {
   constructor(private readonly factSheetService: FactSheetService) {}
 
   @ResolveField('filterOptions')
-  filterOptions() {
-    return this.factSheetService.getFilterOptions();
+  filterOptions(@CurrentUser() user: JwtClaims) {
+    return this.factSheetService.getFilterOptions(user.workspaceId);
   }
 }
 

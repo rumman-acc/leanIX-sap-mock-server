@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { WebhookConfig } from '@leanix-mock/shared';
+import { JwtClaims, WebhookConfig } from '@leanix-mock/shared';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { WebhookService } from './webhook.service';
 import { RegisterWebhookDto, WebhookSubscriptionResponseDto, WebhookSubscriptionListResponseDto } from '../rest/dto/webhook.dto';
 
@@ -18,38 +19,38 @@ export class WebhookController {
   @HttpCode(201)
   @ApiOperation({ summary: 'Register a webhook subscription' })
   @ApiResponse({ status: 201, type: WebhookSubscriptionResponseDto })
-  register(@Body() body: RegisterWebhookDto) {
-    return this.webhookService.register(body as WebhookConfig);
+  register(@Body() body: RegisterWebhookDto, @CurrentUser() user: JwtClaims) {
+    return this.webhookService.register(body as WebhookConfig, user.workspaceId);
   }
 
   @Get()
   @ApiOperation({ summary: 'List all webhook subscriptions' })
   @ApiResponse({ status: 200, type: WebhookSubscriptionListResponseDto })
-  list() {
-    return this.webhookService.list();
+  list(@CurrentUser() user: JwtClaims) {
+    return this.webhookService.list(user.workspaceId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a webhook subscription' })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, type: WebhookSubscriptionResponseDto })
-  findOne(@Param('id') id: string) {
-    return this.webhookService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtClaims) {
+    return this.webhookService.findOne(id, user.workspaceId);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a webhook subscription' })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, type: WebhookSubscriptionResponseDto })
-  update(@Param('id') id: string, @Body() body: Partial<RegisterWebhookDto>) {
-    return this.webhookService.update(id, body as Partial<WebhookConfig>);
+  update(@Param('id') id: string, @Body() body: Partial<RegisterWebhookDto>, @CurrentUser() user: JwtClaims) {
+    return this.webhookService.update(id, body as Partial<WebhookConfig>, user.workspaceId);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a webhook subscription' })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, type: WebhookSubscriptionResponseDto })
-  remove(@Param('id') id: string) {
-    return this.webhookService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: JwtClaims) {
+    return this.webhookService.remove(id, user.workspaceId);
   }
 }

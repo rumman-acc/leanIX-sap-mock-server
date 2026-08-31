@@ -71,6 +71,29 @@ const BUSINESS_CRITICALITY_VALUES: DefaultAllowedValue[] = [
   { value: 'missionCritical', label: 'Mission Critical', color: '#E57373' },
 ];
 
+// Illustrative placeholders, same status as SUITABILITY_VALUES above — real LeanIX has no
+// dedicated "standards" API to source real enum values from (see docs/RESEARCH_LEANIX_REAL_API.md
+// and LeanIX_Mock_Server_Scope.md §11: don't invent business logic the real system doesn't have).
+// This models governance status through the existing generic attribute mechanism instead.
+const STANDARD_STATUS_VALUES: DefaultAllowedValue[] = [
+  { value: 'approved', label: 'Approved', color: '#81C784' },
+  { value: 'emerging', label: 'Emerging', color: '#FFD54F' },
+  { value: 'deprecated', label: 'Deprecated', color: '#E57373' },
+  { value: 'prohibited', label: 'Prohibited', color: '#B71C1C' },
+];
+
+const AGENT_TYPE_VALUES: DefaultAllowedValue[] = [
+  { value: 'assistant', label: 'Assistant', color: '#4FC3F7' },
+  { value: 'autonomous', label: 'Autonomous Agent', color: '#7E57C2' },
+  { value: 'workflow', label: 'Workflow Automation', color: '#4DB6AC' },
+];
+
+const RISK_CLASSIFICATION_VALUES: DefaultAllowedValue[] = [
+  { value: 'low', label: 'Low', color: '#81C784' },
+  { value: 'medium', label: 'Medium', color: '#FFD54F' },
+  { value: 'high', label: 'High', color: '#E57373' },
+];
+
 const baseAttributes = (): DefaultAttribute[] => [
   { technicalKey: 'name', label: 'Name', dataType: 'STRING', mandatory: true },
   { technicalKey: 'description', label: 'Description', dataType: 'STRING', mandatory: false },
@@ -174,6 +197,61 @@ export const DEFAULT_FACT_SHEET_TYPES: DefaultFactSheetType[] = [
     color: '#37474F',
     attributes: baseAttributes(),
   },
+  {
+    technicalKey: 'TechCategory',
+    label: 'Tech Category',
+    description: 'A category of technology and its governance/standards status — modeled through the existing generic attribute mechanism rather than a separate "standards" subsystem, since real LeanIX has no dedicated standards API.',
+    icon: 'techCategory',
+    color: '#8D6E63',
+    attributes: [
+      ...baseAttributes(),
+      {
+        technicalKey: 'standardStatus',
+        label: 'Standard Status',
+        dataType: 'SINGLE_SELECT',
+        mandatory: false,
+        allowedValues: STANDARD_STATUS_VALUES,
+      },
+    ],
+  },
+  {
+    technicalKey: 'Objective',
+    label: 'Objective',
+    description: 'A strategic objective or OKR that initiatives and capabilities trace back to',
+    icon: 'objective',
+    color: '#C62828',
+    attributes: baseAttributes(),
+  },
+  {
+    technicalKey: 'AIAgent',
+    label: 'AI Agent',
+    description: 'An AI agent or model tracked for governance — mirrors the AI Agent Discovery (A2A) inventory real LeanIX exposes.',
+    icon: 'aiAgent',
+    color: '#00695C',
+    attributes: [
+      ...baseAttributes(),
+      {
+        technicalKey: 'agentType',
+        label: 'Agent Type',
+        dataType: 'SINGLE_SELECT',
+        mandatory: false,
+        allowedValues: AGENT_TYPE_VALUES,
+      },
+      {
+        technicalKey: 'riskClassification',
+        label: 'Risk Classification',
+        dataType: 'SINGLE_SELECT',
+        mandatory: false,
+        allowedValues: RISK_CLASSIFICATION_VALUES,
+      },
+      {
+        technicalKey: 'modelProvider',
+        label: 'Model Provider',
+        dataType: 'STRING',
+        mandatory: false,
+      },
+    ],
+  },
 ];
 
 export const DEFAULT_RELATION_TYPES: DefaultRelationType[] = [
@@ -214,6 +292,54 @@ export const DEFAULT_RELATION_TYPES: DefaultRelationType[] = [
     label: 'IT Component to Provider',
     sourceType: 'ITComponent',
     targetType: 'Provider',
+    cardinality: 'MANY_TO_MANY',
+    mandatory: false,
+  },
+  {
+    technicalKey: 'relApplicationToTechCategory',
+    label: 'Application to Tech Category',
+    sourceType: 'Application',
+    targetType: 'TechCategory',
+    cardinality: 'MANY_TO_MANY',
+    mandatory: false,
+  },
+  {
+    technicalKey: 'relITComponentToTechCategory',
+    label: 'IT Component to Tech Category',
+    sourceType: 'ITComponent',
+    targetType: 'TechCategory',
+    cardinality: 'MANY_TO_MANY',
+    mandatory: false,
+  },
+  {
+    technicalKey: 'relProjectToObjective',
+    label: 'Project to Objective',
+    sourceType: 'Project',
+    targetType: 'Objective',
+    cardinality: 'MANY_TO_MANY',
+    mandatory: false,
+  },
+  {
+    technicalKey: 'relBusinessCapabilityToObjective',
+    label: 'Business Capability to Objective',
+    sourceType: 'BusinessCapability',
+    targetType: 'Objective',
+    cardinality: 'MANY_TO_MANY',
+    mandatory: false,
+  },
+  {
+    technicalKey: 'relAIAgentToApplication',
+    label: 'AI Agent to Application',
+    sourceType: 'AIAgent',
+    targetType: 'Application',
+    cardinality: 'MANY_TO_MANY',
+    mandatory: false,
+  },
+  {
+    technicalKey: 'relAIAgentToBusinessCapability',
+    label: 'AI Agent to Business Capability',
+    sourceType: 'AIAgent',
+    targetType: 'BusinessCapability',
     cardinality: 'MANY_TO_MANY',
     mandatory: false,
   },

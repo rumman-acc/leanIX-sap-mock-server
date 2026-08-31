@@ -32,7 +32,7 @@ export class FactSheetPatchService {
   ) {}
 
   async update(id: string, patches: Patch[], actor: JwtClaims, options?: UpdateFactSheetOptions) {
-    const before = await this.factSheetService.requireById(id);
+    const before = await this.factSheetService.requireById(id, actor.workspaceId);
 
     if (options?.rev !== undefined && options.rev !== before.rev) {
       throw new LeanIxException('INVALID_PATCH', `Stale revision: fact sheet is at rev ${before.rev}, patch targeted rev ${options.rev}`, {
@@ -60,9 +60,9 @@ export class FactSheetPatchService {
           } else if (patch.path === '/qualitySeal') {
             await this.applyQualitySealPatch(tx, id, patch, changes);
           } else if (patch.path === '/tags' || patch.path.startsWith('/tags/')) {
-            await this.applyTagPatch(tx, id, patch);
+            await this.applyTagPatch(tx, id, patch, actor.workspaceId);
           } else if (patch.path.startsWith('/rel')) {
-            const created = await this.applyRelationPatch(tx, id, before.type.technicalKey, patch);
+            const created = await this.applyRelationPatch(tx, id, before.type.technicalKey, patch, actor.workspaceId);
             if (created) relationsCreated.push(created);
           } else {
             await this.applyCustomAttributePatch(tx, id, before.type.id, patch);
@@ -84,7 +84,7 @@ export class FactSheetPatchService {
       throw err;
     }
 
-    const after = await this.factSheetService.requireById(id);
+    const after = await this.factSheetService.requireById(id, actor.workspaceId);
 
     if (changes.length > 0) {
       this.events.emit('factsheet.event', {
@@ -244,14 +244,18 @@ export class FactSheetPatchService {
     await tx.factSheet.update({ where: { id }, data: { qualitySeal } });
   }
 
-  private async applyTagPatch(tx: PrismaTx, factSheetId: string, patch: Patch) {
+  private async applyTagPatch(tx: PrismaTx, factSheetId: string, patch: Patch, workspaceId: string) {
     if (patch.op === 'add' && patch.path === '/tags') {
       const value = patch.value as { name?: string; group?: { name?: string } } | undefined;
       if (!value?.name) {
         throw new LeanIxException('INVALID_PATCH', 'tag add requires a value with a "name" field');
       }
       const groupName = value.group?.name ?? 'default';
-      const group = await tx.tagGroup.upsert({ where: { name: groupName }, update: {}, create: { name: groupName } });
+      const group = await tx.tagGroup.upsert({
+        where: { workspaceId_name: { workspaceId, name: groupName } },
+        update: {},
+        create: { workspaceId, name: groupName },
+      });
       const tag = await tx.tag.upsert({
         where: { groupId_name: { groupId: group.id, name: value.name } },
         update: {},
@@ -279,13 +283,14 @@ export class FactSheetPatchService {
     factSheetId: string,
     sourceTypeKey: string,
     patch: Patch,
+    workspaceId: string,
   ): Promise<FactSheetEvent['relation'] | null> {
     const parsed = parseRelationPatchPath(patch.path);
     if (!parsed) {
       throw new LeanIxException('INVALID_PATCH', `Invalid relation patch path "${patch.path}"`);
     }
 
-    const relationType = await this.metaModel.requireRelationTypeByKey(parsed.relationTypeKey);
+    const relationType = await this.metaModel.requireRelationTypeByKey(workspaceId, parsed.relationTypeKey);
 
     if (patch.op === 'add') {
       if (parsed.relationId) {
@@ -296,7 +301,7 @@ export class FactSheetPatchService {
         throw new LeanIxException('INVALID_PATCH', 'add relation requires a target fact sheet id as value');
       }
       const target = await tx.factSheet.findUnique({ where: { id: targetId }, include: { type: true } });
-      if (!target) {
+      if (!target || target.workspaceId !== workspaceId) {
         throw new LeanIxException('FACT_SHEET_NOT_FOUND', `Target fact sheet "${targetId}" does not exist`);
       }
       const relation = await tx.relation.upsert({
@@ -328,7 +333,7 @@ export class FactSheetPatchService {
     if (patch.op === 'replace') {
       const targetId = patch.value as string;
       const target = await tx.factSheet.findUnique({ where: { id: targetId } });
-      if (!target) {
+      if (!target || target.workspaceId !== workspaceId) {
         throw new LeanIxException('FACT_SHEET_NOT_FOUND', `Target fact sheet "${targetId}" does not exist`);
       }
       await tx.relation.update({ where: { id: parsed.relationId }, data: { targetId } });

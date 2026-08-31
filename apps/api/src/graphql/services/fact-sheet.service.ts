@@ -14,6 +14,7 @@ export const FACT_SHEET_INCLUDE = {
   attributes: { include: { attribute: true } },
   tags: { include: { tag: { include: { group: true } } } },
   subscriptions: true,
+  comments: { include: { user: true }, orderBy: { createdAt: 'asc' } },
   sourceRelations: {
     include: {
       relationType: { include: { sourceType: true, targetType: true } },
@@ -53,20 +54,26 @@ export class FactSheetService {
     private readonly configService: ConfigService,
   ) {}
 
-  async findById(id: string) {
-    return this.prisma.factSheet.findUnique({ where: { id }, include: FACT_SHEET_INCLUDE });
+  async findById(id: string, workspaceId?: string) {
+    const factSheet = await this.prisma.factSheet.findUnique({ where: { id }, include: FACT_SHEET_INCLUDE });
+    // Cross-workspace reads by id are rejected the same way a nonexistent id is — a real
+    // multi-tenant LeanIX gives no signal that an id exists in a workspace you can't see.
+    if (factSheet && workspaceId && factSheet.workspaceId !== workspaceId) {
+      return null;
+    }
+    return factSheet;
   }
 
-  async requireById(id: string) {
-    const factSheet = await this.findById(id);
+  async requireById(id: string, workspaceId?: string) {
+    const factSheet = await this.findById(id, workspaceId);
     if (!factSheet) {
       throw new LeanIxException('FACT_SHEET_NOT_FOUND', `Fact sheet "${id}" does not exist`, { id });
     }
     return factSheet;
   }
 
-  async findMany(opts: { filter?: FilterInput; sort?: SortInput; first?: number; after?: string }) {
-    const where = await this.buildWhere(opts.filter);
+  async findMany(opts: { filter?: FilterInput; sort?: SortInput; first?: number; after?: string }, workspaceId: string) {
+    const where = await this.buildWhere(opts.filter, workspaceId);
     const orderBy = this.buildOrderBy(opts.sort);
     const take = Math.min(opts.first ?? 50, 500);
     const cursorId = opts.after ? decodeCursor(opts.after) : undefined;
@@ -98,10 +105,10 @@ export class FactSheetService {
   }
 
   /** Real LeanIX facet-discovery — lets a client learn valid facetKey/keys combinations. */
-  async getFilterOptions() {
+  async getFilterOptions(workspaceId: string) {
     const [types, tags] = await Promise.all([
-      this.prisma.factSheetType.findMany({ where: { enabled: true }, orderBy: { technicalKey: 'asc' } }),
-      this.prisma.tag.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.factSheetType.findMany({ where: { workspaceId, enabled: true }, orderBy: { technicalKey: 'asc' } }),
+      this.prisma.tag.findMany({ where: { group: { workspaceId } }, orderBy: { name: 'asc' } }),
     ]);
 
     return {
@@ -112,10 +119,11 @@ export class FactSheetService {
     };
   }
 
-  async search(query: string, first?: number, after?: string) {
+  async search(query: string, first: number | undefined, after: string | undefined, workspaceId: string) {
     const take = Math.min(first ?? 50, 500);
     const cursorId = after ? decodeCursor(after) : undefined;
     const where = {
+      workspaceId,
       trashBin: false,
       OR: [
         { name: { contains: query, mode: 'insensitive' as const } },
@@ -160,7 +168,7 @@ export class FactSheetService {
 
   async create(input: BaseFactSheetInput, actor: JwtClaims) {
     this.validateName(input.name);
-    const type = await this.metaModel.requireTypeByKey(input.type);
+    const type = await this.metaModel.requireTypeByKey(actor.workspaceId, input.type);
 
     if (input.externalId) {
       await this.assertExternalIdUnique(type.id, input.externalId);
@@ -169,6 +177,7 @@ export class FactSheetService {
     const factSheet = await this.prisma.$transaction(async (tx) => {
       const created = await tx.factSheet.create({
         data: {
+          workspaceId: actor.workspaceId,
           typeId: type.id,
           name: input.name,
           displayName: input.name,
@@ -182,10 +191,10 @@ export class FactSheetService {
       });
 
       if (input.tags?.length) {
-        await this.applyTagsWithinTx(tx, created.id, input.tags);
+        await this.applyTagsWithinTx(tx, created.id, input.tags, actor.workspaceId);
       }
       if (input.subscriptions?.length) {
-        await this.applySubscriptionsWithinTx(tx, created.id, input.subscriptions);
+        await this.applySubscriptionsWithinTx(tx, created.id, input.subscriptions, actor.workspaceId);
       }
 
       await this.recalculateCompletionWithinTx(tx, created.id, type.id);
@@ -203,7 +212,7 @@ export class FactSheetService {
   }
 
   async archive(id: string, actor: JwtClaims) {
-    const factSheet = await this.requireById(id);
+    const factSheet = await this.requireById(id, actor.workspaceId);
     const retentionDays = this.configService.get<LeanIxConfig>('leanix')!.trashBinRetentionDays;
     const archivedAt = new Date();
     const autoDeleteAt = new Date(archivedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000);
@@ -240,7 +249,7 @@ export class FactSheetService {
   }
 
   async revive(id: string, actor: JwtClaims) {
-    await this.requireById(id);
+    await this.requireById(id, actor.workspaceId);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.factSheet.update({
@@ -262,8 +271,9 @@ export class FactSheetService {
     return updated;
   }
 
-  async permanentDelete(id: string) {
-    const factSheet = await this.requireById(id);
+  /** `actor` omitted = system context (e.g. the trash-bin retention scheduler), which legitimately operates across every workspace by exact id rather than impersonating one. */
+  async permanentDelete(id: string, actor?: JwtClaims) {
+    const factSheet = await this.requireById(id, actor?.workspaceId);
     if (!factSheet.trashBin) {
       throw new LeanIxException('INVALID_PATCH', 'Fact sheet must be in the trash bin before it can be permanently deleted', { id });
     }
@@ -284,11 +294,12 @@ export class FactSheetService {
    * an alternative to relation patches on updateFactSheet, which remain fully supported too.
    */
   async upsertRelation(from: string, to: string, relationTypeKey: string, description: string | undefined, actor: JwtClaims) {
-    const relationType = await this.metaModel.requireRelationTypeByKey(relationTypeKey);
+    const relationType = await this.metaModel.requireRelationTypeByKey(actor.workspaceId, relationTypeKey);
     // Fetch source/target (with full includes for the field resolvers) OUTSIDE the transaction —
     // doing it inside, on top of the write, previously blew past the transaction timeout under
-    // real network latency (found live-testing this against Neon).
-    const [source, target] = await Promise.all([this.requireById(from), this.requireById(to)]);
+    // real network latency (found live-testing this against Neon). Scoping both by workspace
+    // also rejects cross-workspace relations, which real LeanIX has no concept of.
+    const [source, target] = await Promise.all([this.requireById(from, actor.workspaceId), this.requireById(to, actor.workspaceId)]);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const relation = await tx.relation.upsert({
@@ -315,9 +326,9 @@ export class FactSheetService {
     return { id: created.id, description: created.description, relationType, source, target };
   }
 
-  async deleteRelation(id: string) {
-    const relation = await this.prisma.relation.findUnique({ where: { id } });
-    if (!relation) {
+  async deleteRelation(id: string, actor: JwtClaims) {
+    const relation = await this.prisma.relation.findUnique({ where: { id }, include: { source: true } });
+    if (!relation || relation.source.workspaceId !== actor.workspaceId) {
       throw new LeanIxException('RELATION_NOT_FOUND', `Relation "${id}" does not exist`, { id });
     }
 
@@ -349,14 +360,19 @@ export class FactSheetService {
     }
   }
 
-  private async applyTagsWithinTx(tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0], factSheetId: string, tags: BaseFactSheetInput['tags']) {
+  private async applyTagsWithinTx(
+    tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    factSheetId: string,
+    tags: BaseFactSheetInput['tags'],
+    workspaceId: string,
+  ) {
     for (const tagInput of tags ?? []) {
       if (!tagInput?.name) continue;
       const groupName = tagInput.group?.name ?? 'default';
       const group = await tx.tagGroup.upsert({
-        where: { name: groupName },
+        where: { workspaceId_name: { workspaceId, name: groupName } },
         update: {},
-        create: { name: groupName },
+        create: { workspaceId, name: groupName },
       });
       const tag = await tx.tag.upsert({
         where: { groupId_name: { groupId: group.id, name: tagInput.name } },
@@ -375,6 +391,7 @@ export class FactSheetService {
     tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
     factSheetId: string,
     subscriptions: BaseFactSheetInput['subscriptions'],
+    workspaceId: string,
   ) {
     for (const sub of subscriptions ?? []) {
       if (!sub?.user) continue;
@@ -385,7 +402,7 @@ export class FactSheetService {
         create: {
           email,
           name: sub.user.name ?? email,
-          workspaceId: 'ws-development',
+          workspaceId,
         },
       });
       await tx.subscription.upsert({
@@ -445,15 +462,15 @@ export class FactSheetService {
     return true;
   }
 
-  private async buildWhere(filter?: FilterInput) {
-    const where: Record<string, unknown> = { trashBin: false };
+  private async buildWhere(filter: FilterInput | undefined, workspaceId: string) {
+    const where: Record<string, unknown> = { workspaceId, trashBin: false };
 
     if (!filter) return where;
 
     if (filter.facetFilters?.length) {
       const AND: Record<string, unknown>[] = [];
       for (const ff of filter.facetFilters) {
-        AND.push(await this.facetFilterToWhere(ff));
+        AND.push(await this.facetFilterToWhere(ff, workspaceId));
       }
       where.AND = [...((where.AND as Record<string, unknown>[]) ?? []), ...AND];
     }
@@ -466,7 +483,7 @@ export class FactSheetService {
     }
 
     if (filter.factSheetType) {
-      const type = await this.metaModel.requireTypeByKey(filter.factSheetType);
+      const type = await this.metaModel.requireTypeByKey(workspaceId, filter.factSheetType);
       where.typeId = type.id;
     }
 
@@ -517,11 +534,11 @@ export class FactSheetService {
    * (a fact sheet has exactly one type / one value for a given attribute) it degrades to "must
    * equal every key", which is a no-op unless all keys are identical.
    */
-  private async facetFilterToWhere(ff: { facetKey: string; operator?: string; keys: string[] }): Promise<Record<string, unknown>> {
+  private async facetFilterToWhere(ff: { facetKey: string; operator?: string; keys: string[] }, workspaceId: string): Promise<Record<string, unknown>> {
     const isAnd = ff.operator === 'AND';
 
     if (ff.facetKey === 'FactSheetTypes') {
-      const types = await Promise.all(ff.keys.map((key) => this.metaModel.findTypeByKey(key)));
+      const types = await Promise.all(ff.keys.map((key) => this.metaModel.findTypeByKey(workspaceId, key)));
       const typeIds = types.filter((t): t is NonNullable<typeof t> => Boolean(t)).map((t) => t.id);
       return isAnd && typeIds.length > 1 ? { id: '__never_matches__' } : { typeId: { in: typeIds } };
     }

@@ -19,4 +19,10 @@ export const IdPrefix = {
   TAG: 'tag',
   TAG_GROUP: 'taggroup',
   SUBSCRIPTION: 'sub',
+  COMMENT: 'comment',
+  TODO: 'todo',
+  SURVEY_DEFINITION: 'survey-def',
+  SURVEY_RUN: 'survey-run',
+  SURVEY_INVITATION: 'survey-inv',
+  SURVEY_RESPONSE: 'survey-resp',
 } as const;

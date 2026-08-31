@@ -95,4 +95,40 @@ describe('FactSheetService', () => {
     prisma.factSheet.findUnique.mockResolvedValue(null);
     await expect(service.archive('missing-id', actor)).rejects.toMatchObject({ code: 'FACT_SHEET_NOT_FOUND' });
   });
+
+  it('treats a fact sheet in a different workspace as not found', async () => {
+    prisma.factSheet.findUnique.mockResolvedValue({ id: 'fs-1', workspaceId: 'ws-other-tenant' });
+
+    const found = await service.findById('fs-1', 'ws-development');
+
+    expect(found).toBeNull();
+  });
+
+  it('returns a fact sheet when the workspace matches', async () => {
+    prisma.factSheet.findUnique.mockResolvedValue({ id: 'fs-1', workspaceId: 'ws-development' });
+
+    const found = await service.findById('fs-1', 'ws-development');
+
+    expect(found).toEqual({ id: 'fs-1', workspaceId: 'ws-development' });
+  });
+
+  it('scopes new fact sheets to the creating actor\'s workspace', async () => {
+    prisma.factSheet.findFirst.mockResolvedValue(null);
+    prisma.factSheet.create.mockResolvedValue({ id: 'fs-1' });
+    prisma.factSheet.findUniqueOrThrow.mockResolvedValue({
+      id: 'fs-1',
+      name: 'Test App',
+      type: APPLICATION_TYPE,
+      externalId: null,
+      status: 'ACTIVE',
+      qualitySeal: 'BROKEN',
+    });
+
+    await service.create({ name: 'Test App', type: 'Application' }, actor);
+
+    expect(prisma.factSheet.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ workspaceId: 'ws-development' }) }),
+    );
+    expect(metaModel.requireTypeByKey).toHaveBeenCalledWith('ws-development', 'Application');
+  });
 });

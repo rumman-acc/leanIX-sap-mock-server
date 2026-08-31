@@ -6,15 +6,26 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Used only by `prisma migrate`/`prisma db` commands, never by the running app (PrismaClient
+  // always uses `url`). Needed because DATABASE_URL may point at a PgBouncer-pooled endpoint,
+  // which migration commands can't reliably use — see docs/BUILD_STATUS.md §5 and .env.example.
+  // Must always be set (Prisma requires it once `directUrl` is present in the schema at all) —
+  // for a non-pooled local Postgres, just set it to the same value as DATABASE_URL.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // --- Meta Model --------------------------------------------
 
 model FactSheetType {
   id            String   @id @default(cuid())
-  technicalKey  String   @unique @map("technical_key")
+  // Real LeanIX's meta model is per-workspace (every workspace can define its own custom fields
+  // and even its own types) — see LeanIX_Mock_Server_Scope.md §2.1. Previously this mock had one
+  // implicit global meta model; scoping it is what makes a genuine second workspace possible.
+  workspaceId   String   @map("workspace_id")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  technicalKey  String   @map("technical_key")
   label         String
   description   String?
   icon          String?
@@ -28,6 +39,7 @@ model FactSheetType {
   relationsAsSource RelationType[] @relation("SourceType")
   relationsAsTarget RelationType[] @relation("TargetType")
 
+  @@unique([workspaceId, technicalKey])
   @@map("fact_sheet_types")
 }
 
@@ -63,6 +75,8 @@ model AllowedValue {
 
 model RelationType {
   id            String   @id @default(cuid())
+  workspaceId   String   @map("workspace_id")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
   technicalKey  String   @map("technical_key")
   label         String
   description   String?
@@ -75,7 +89,7 @@ model RelationType {
 
   relations     Relation[]
 
-  @@unique([sourceTypeId, targetTypeId, technicalKey])
+  @@unique([workspaceId, sourceTypeId, targetTypeId, technicalKey])
   @@map("relation_types")
 }
 
@@ -83,6 +97,8 @@ model RelationType {
 
 model FactSheet {
   id            String   @id @default(cuid())
+  workspaceId   String   @map("workspace_id")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
   typeId        String   @map("type_id")
   type          FactSheetType @relation(fields: [typeId], references: [id])
   name          String
@@ -111,6 +127,8 @@ model FactSheet {
   attributes    AttributeValue[]
   tags          TagAssignment[]
   subscriptions Subscription[]
+  comments      Comment[]
+  todos         Todo[]
 
   sourceRelations Relation[] @relation("SourceFactSheet")
   targetRelations Relation[] @relation("TargetFactSheet")
@@ -122,7 +140,44 @@ model FactSheet {
   @@index([externalId])
   @@index([status])
   @@index([trashBin])
+  @@index([workspaceId])
   @@map("fact_sheets")
+}
+
+// --- Comments & To-Dos ---------------------------------------
+
+model Comment {
+  id            String   @id @default(cuid())
+  factSheetId   String   @map("fact_sheet_id")
+  factSheet     FactSheet @relation(fields: [factSheetId], references: [id], onDelete: Cascade)
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id])
+  message       String
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([factSheetId])
+  @@map("comments")
+}
+
+model Todo {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  status        String   @default("OPEN")
+  factSheetId   String?  @map("fact_sheet_id")
+  factSheet     FactSheet? @relation(fields: [factSheetId], references: [id], onDelete: Cascade)
+  assigneeId    String?  @map("assignee_id")
+  assignee      User?    @relation(fields: [assigneeId], references: [id])
+  dueDate       DateTime? @map("due_date")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([factSheetId])
+  @@index([assigneeId])
+  @@index([status])
+  @@map("todos")
 }
 
 model AttributeValue {
@@ -160,11 +215,14 @@ model Relation {
 
 model TagGroup {
   id            String   @id @default(cuid())
-  name          String   @unique
+  workspaceId   String   @map("workspace_id")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  name          String
   description   String?
   color         String?
   tags          Tag[]
 
+  @@unique([workspaceId, name])
   @@map("tag_groups")
 }
 
@@ -361,6 +419,69 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
+// --- Surveys -------------------------------------------------
+
+model SurveyDefinition {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  // Which fact sheet type this survey targets (e.g. "Application" for an owner-confirmation
+  // survey) — real LeanIX surveys are scoped to a fact sheet type, per capability map §1.2.
+  factSheetType String?  @map("fact_sheet_type")
+  questions     Json
+  status        String   @default("ACTIVE")
+
+  runs          SurveyRun[]
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("survey_definitions")
+}
+
+model SurveyRun {
+  id              String   @id @default(cuid())
+  definitionId    String   @map("definition_id")
+  definition      SurveyDefinition @relation(fields: [definitionId], references: [id])
+  status          String   @default("RUNNING")
+
+  invitations     SurveyInvitation[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  closedAt        DateTime? @map("closed_at")
+
+  @@index([definitionId])
+  @@map("survey_runs")
+}
+
+model SurveyInvitation {
+  id            String   @id @default(cuid())
+  runId         String   @map("run_id")
+  run           SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id])
+  factSheetId   String?  @map("fact_sheet_id")
+  status        String   @default("PENDING")
+
+  response      SurveyResponse?
+
+  invitedAt     DateTime @default(now()) @map("invited_at")
+
+  @@index([runId])
+  @@map("survey_invitations")
+}
+
+model SurveyResponse {
+  id            String   @id @default(cuid())
+  invitationId  String   @unique @map("invitation_id")
+  invitation    SurveyInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  answers       Json
+
+  submittedAt   DateTime @default(now()) @map("submitted_at")
+
+  @@map("survey_responses")
+}
+
 // --- Users & Workspace -------------------------------------
 
 model User {
@@ -371,6 +492,10 @@ model User {
   workspaceId   String   @map("workspace_id")
   apiToken      String?  @unique @map("api_token")
   apiTokenSecret String? @map("api_token_secret")
+
+  comments      Comment[]
+  assignedTodos Todo[]
+  surveyInvitations SurveyInvitation[]
 
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -383,6 +508,11 @@ model Workspace {
   name          String   @unique
   displayName   String   @map("display_name")
   description   String?
+
+  factSheetTypes FactSheetType[]
+  relationTypes  RelationType[]
+  factSheets     FactSheet[]
+  tagGroups      TagGroup[]
 
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")

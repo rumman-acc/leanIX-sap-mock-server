@@ -12,8 +12,6 @@ import { LeanIxConfig } from '../config/leanix.config';
 import { FactSheetEvent } from '../graphql/services/fact-sheet.service';
 import { WEBHOOK_DELIVERY_QUEUE, WebhookDeliveryJobData } from './webhook.constants';
 
-const WORKSPACE_ID = 'ws-development';
-
 export interface WebhookSubscriptionResponse<T> {
   status: 'OK';
   data: T;
@@ -33,7 +31,7 @@ export class WebhookService {
     return { status: 'OK', data };
   }
 
-  async register(config: WebhookConfig) {
+  async register(config: WebhookConfig, workspaceId: string) {
     this.validate(config);
 
     const webhook = await this.prisma.webhook.create({
@@ -51,27 +49,27 @@ export class WebhookService {
         ignoreError: config.ignoreError ?? true,
         events: config.events ?? [],
         secret: config.secret,
-        workspaceId: WORKSPACE_ID,
+        workspaceId,
       },
     });
     return this.wrap(webhook);
   }
 
-  async list() {
-    const webhooks = await this.prisma.webhook.findMany({ where: { workspaceId: WORKSPACE_ID }, orderBy: { createdAt: 'desc' } });
+  async list(workspaceId: string) {
+    const webhooks = await this.prisma.webhook.findMany({ where: { workspaceId }, orderBy: { createdAt: 'desc' } });
     return this.wrap(webhooks);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, workspaceId: string) {
     const webhook = await this.prisma.webhook.findUnique({ where: { id } });
-    if (!webhook || webhook.workspaceId !== WORKSPACE_ID) {
+    if (!webhook || webhook.workspaceId !== workspaceId) {
       throw new NotFoundException(`Webhook subscription "${id}" does not exist`);
     }
     return this.wrap(webhook);
   }
 
-  async update(id: string, config: Partial<WebhookConfig>) {
-    await this.findOne(id);
+  async update(id: string, config: Partial<WebhookConfig>, workspaceId: string) {
+    await this.findOne(id, workspaceId);
     if (config.identifier === '' || config.targetUrl === '') {
       throw new LeanIxException('INVALID_LDIF', 'identifier and targetUrl cannot be empty');
     }
@@ -99,8 +97,8 @@ export class WebhookService {
     return this.wrap(webhook);
   }
 
-  async remove(id: string) {
-    const existing = await this.findOne(id);
+  async remove(id: string, workspaceId: string) {
+    const existing = await this.findOne(id, workspaceId);
     await this.prisma.webhook.delete({ where: { id } });
     return this.wrap(existing.data);
   }
@@ -135,7 +133,7 @@ export class WebhookService {
     // convenience so tests/integrations can still target specific events).
     const webhooks = await this.prisma.webhook.findMany({
       where: {
-        workspaceId: WORKSPACE_ID,
+        workspaceId: event.actor.workspaceId,
         active: true,
         OR: [{ events: { isEmpty: true } }, { events: { has: event.eventType } }],
       },

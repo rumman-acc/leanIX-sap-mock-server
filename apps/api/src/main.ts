@@ -8,7 +8,14 @@ import { LeanIxConfig } from './config/leanix.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  // `whitelist: true` intentionally NOT set: every REST DTO in this repo is Swagger-only shape
+  // documentation with no class-validator decorators (house style — see docs/BUILD_STATUS.md's
+  // note on hand-written validation), so class-validator has no per-DTO metadata to whitelist
+  // against. With whitelist on, it strips every property from every request body regardless of
+  // DTO shape, silently breaking every POST/PUT/PATCH route in the API (found live-verifying the
+  // new Comments endpoint: it also broke the pre-existing, previously "verified live" webhook
+  // registration endpoint — that verification must predate this pipe being added).
+  app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   const configService = app.get(ConfigService);
   const config = configService.get<LeanIxConfig>('leanix')!;

@@ -21,6 +21,10 @@ export interface LdifProcessingCounts {
 }
 
 const TECHNICAL_USER_ID = 'user-technical';
+// LDIF sync stays scoped to the default workspace — real LeanIX connectors are configured
+// per-workspace too, and this mock has no per-run workspace selection concept (documented scope
+// cut for multi-workspace support, see LeanIX_Mock_UseCase_Coverage_Analysis.md §6 Phase 6).
+const LDIF_WORKSPACE_ID = 'ws-development';
 
 @Injectable()
 export class LdifProcessor {
@@ -77,7 +81,7 @@ export class LdifProcessor {
     item: LdifContentItem,
     counts: LdifProcessingCounts,
   ): Promise<{ factSheetId: string; factSheetTypeKey: string } | null> {
-    const type = await this.metaModel.findTypeByKey(item.type);
+    const type = await this.metaModel.findTypeByKey(LDIF_WORKSPACE_ID, item.type);
     if (!type) {
       counts.errorCount += 1;
       await this.syncLogService.log(syncRunId, 'ERROR', `Fact sheet type "${item.type}" does not exist`, { sourceRecordId: item.id });
@@ -116,6 +120,7 @@ export class LdifProcessor {
     if (isNewFactSheet) {
       const created = await this.prisma.factSheet.create({
         data: {
+          workspaceId: LDIF_WORKSPACE_ID,
           typeId: type.id,
           name: (native.name as string) ?? item.id,
           displayName: (native.name as string) ?? item.id,
@@ -261,7 +266,7 @@ export class LdifProcessor {
     const relationEntries = Object.entries(item.data).filter(([key]) => key.startsWith('rel'));
 
     for (const [relationKey, rawTargets] of relationEntries) {
-      const relationType = await this.metaModel.findRelationTypeByKey(relationKey);
+      const relationType = await this.metaModel.findRelationTypeByKey(LDIF_WORKSPACE_ID, relationKey);
       if (!relationType) {
         await this.syncLogService.log(syncRunId, 'WARNING', `Unknown relation type "${relationKey}" skipped for "${item.id}"`, {
           sourceRecordId: item.id,
@@ -339,7 +344,7 @@ export class LdifProcessor {
       aud: 'leanix-services',
       iat: 0,
       exp: 0,
-      workspaceId: 'ws-development',
+      workspaceId: LDIF_WORKSPACE_ID,
       workspaceName: 'development',
       workspaceRole: 'ADMIN',
       userName: 'technical-user@mock.local',

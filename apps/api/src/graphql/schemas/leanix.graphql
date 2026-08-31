@@ -184,6 +184,7 @@ interface BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type Application implements BaseFactSheet {
@@ -210,6 +211,7 @@ type Application implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
   # Named fields matching real LeanIX's inline-fragment shape for Application — see
   # docs/RESEARCH_LEANIX_REAL_API.md §7. Also available generically via `attributes` (support both).
   functionalSuitability: String
@@ -241,6 +243,7 @@ type BusinessCapability implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type ITComponent implements BaseFactSheet {
@@ -267,6 +270,7 @@ type ITComponent implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type Provider implements BaseFactSheet {
@@ -293,6 +297,7 @@ type Provider implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type Process implements BaseFactSheet {
@@ -319,6 +324,7 @@ type Process implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type Project implements BaseFactSheet {
@@ -345,6 +351,7 @@ type Project implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type DataObject implements BaseFactSheet {
@@ -371,6 +378,7 @@ type DataObject implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type Interface implements BaseFactSheet {
@@ -397,6 +405,7 @@ type Interface implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
 }
 
 type TechnicalStack implements BaseFactSheet {
@@ -423,6 +432,94 @@ type TechnicalStack implements BaseFactSheet {
   subscriptions: [Subscription!]!
   attributes: [AttributeValue!]!
   relations: [Relation!]!
+  comments: [Comment!]!
+}
+
+type TechCategory implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+  comments: [Comment!]!
+  # Governance status, modeled through the generic `attributes` mechanism — also available as a
+  # named field for convenience, matching the Application-style "support both" pattern.
+  standardStatus: String
+}
+
+type Objective implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+  comments: [Comment!]!
+}
+
+type AIAgent implements BaseFactSheet {
+  id: ID!
+  name: String!
+  type: String!
+  description: String
+  displayName: String!
+  externalId: String
+  lifecycle: Lifecycle
+  qualitySeal: QualitySeal!
+  lxState: String!
+  rev: Int!
+  completion: Float!
+  status: FactSheetStatus!
+  trashBin: Boolean!
+  archivedAt: DateTime
+  autoDeleteAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String!
+  tags: [Tag!]!
+  subscriptions: [Subscription!]!
+  attributes: [AttributeValue!]!
+  relations: [Relation!]!
+  comments: [Comment!]!
+  agentType: String
+  riskClassification: String
+  modelProvider: String
 }
 
 type Lifecycle {
@@ -487,6 +584,14 @@ type AllowedValue {
   value: String!
   label: String!
   color: String
+}
+
+type Comment {
+  id: ID!
+  factSheetId: ID!
+  message: String!
+  author: User!
+  createdAt: DateTime!
 }
 
 type Relation {
@@ -611,6 +716,7 @@ type Mutation {
   # naming here.
   upsertRelation(from: ID!, to: ID!, type: String!, description: String): Relation!
   deleteRelation(id: ID!): DeletePayload!
+  createComment(factSheetId: ID!, message: String!): Comment!
 }
 
 type FactSheetPayload {

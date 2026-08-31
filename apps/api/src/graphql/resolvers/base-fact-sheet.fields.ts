@@ -18,6 +18,7 @@ type FactSheetLike = {
   attributes?: Array<{ id: string; value: unknown; attribute: { technicalKey: string } }>;
   sourceRelations?: Array<{ id: string; description: string | null; relationType: unknown; target: unknown }>;
   targetRelations?: Array<{ id: string; description: string | null; relationType: unknown; source: unknown }>;
+  comments?: Array<{ id: string; factSheetId: string; message: string; createdAt: Date; user: { id: string; name: string; email: string } }>;
 };
 
 export function resolveType(factSheet: FactSheetLike) {
@@ -87,6 +88,16 @@ export function resolveRelations(factSheet: FactSheetLike) {
   return [...asSource, ...asTarget];
 }
 
+export function resolveComments(factSheet: FactSheetLike) {
+  return (factSheet.comments ?? []).map((comment) => ({
+    id: comment.id,
+    factSheetId: comment.factSheetId,
+    message: comment.message,
+    author: comment.user,
+    createdAt: comment.createdAt,
+  }));
+}
+
 function attributeValue(factSheet: FactSheetLike, technicalKey: string) {
   return (factSheet.attributes ?? []).find((av) => av.attribute.technicalKey === technicalKey)?.value ?? null;
 }
@@ -100,6 +111,24 @@ const APPLICATION_ONLY_FIELDS = {
   businessCriticality: (factSheet: FactSheetLike) => attributeValue(factSheet, 'businessCriticality'),
 };
 
+const TECH_CATEGORY_ONLY_FIELDS = {
+  standardStatus: (factSheet: FactSheetLike) => attributeValue(factSheet, 'standardStatus'),
+};
+
+const AI_AGENT_ONLY_FIELDS = {
+  agentType: (factSheet: FactSheetLike) => attributeValue(factSheet, 'agentType'),
+  riskClassification: (factSheet: FactSheetLike) => attributeValue(factSheet, 'riskClassification'),
+  modelProvider: (factSheet: FactSheetLike) => attributeValue(factSheet, 'modelProvider'),
+};
+
+// Per-type field extensions beyond COMMON_FACT_SHEET_FIELDS, matching real LeanIX's
+// inline-fragment shape for named (not just generic `attributes`) fields.
+const TYPE_ONLY_FIELDS: Record<string, Record<string, (factSheet: FactSheetLike) => unknown>> = {
+  Application: APPLICATION_ONLY_FIELDS,
+  TechCategory: TECH_CATEGORY_ONLY_FIELDS,
+  AIAgent: AI_AGENT_ONLY_FIELDS,
+};
+
 const COMMON_FACT_SHEET_FIELDS = {
   type: resolveType,
   lxState: resolveLxState,
@@ -108,6 +137,7 @@ const COMMON_FACT_SHEET_FIELDS = {
   subscriptions: resolveSubscriptions,
   attributes: resolveAttributes,
   relations: resolveRelations,
+  comments: resolveComments,
 };
 
 // Every concrete fact sheet type in the meta model (packages/shared/src/constants/default-meta-model.ts).
@@ -121,6 +151,9 @@ const CONCRETE_FACT_SHEET_TYPES = [
   'DataObject',
   'Interface',
   'TechnicalStack',
+  'TechCategory',
+  'Objective',
+  'AIAgent',
 ];
 
 export const baseFactSheetResolvers = {
@@ -130,7 +163,7 @@ export const baseFactSheetResolvers = {
   ...Object.fromEntries(
     CONCRETE_FACT_SHEET_TYPES.map((typeName) => [
       typeName,
-      typeName === 'Application' ? { ...COMMON_FACT_SHEET_FIELDS, ...APPLICATION_ONLY_FIELDS } : COMMON_FACT_SHEET_FIELDS,
+      TYPE_ONLY_FIELDS[typeName] ? { ...COMMON_FACT_SHEET_FIELDS, ...TYPE_ONLY_FIELDS[typeName] } : COMMON_FACT_SHEET_FIELDS,
     ]),
   ),
 };

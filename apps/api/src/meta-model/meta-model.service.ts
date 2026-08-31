@@ -11,38 +11,38 @@ const FACT_SHEET_TYPE_INCLUDE = {
 export class MetaModelService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAllTypes() {
+  async findAllTypes(workspaceId: string) {
     return this.prisma.factSheetType.findMany({
-      where: { enabled: true },
+      where: { workspaceId, enabled: true },
       include: FACT_SHEET_TYPE_INCLUDE,
       orderBy: { technicalKey: 'asc' },
     });
   }
 
-  async findTypeByKey(technicalKey: string) {
+  async findTypeByKey(workspaceId: string, technicalKey: string) {
     return this.prisma.factSheetType.findUnique({
-      where: { technicalKey },
+      where: { workspaceId_technicalKey: { workspaceId, technicalKey } },
       include: FACT_SHEET_TYPE_INCLUDE,
     });
   }
 
-  async requireTypeByKey(technicalKey: string) {
-    const type = await this.findTypeByKey(technicalKey);
+  async requireTypeByKey(workspaceId: string, technicalKey: string) {
+    const type = await this.findTypeByKey(workspaceId, technicalKey);
     if (!type) {
       throw new LeanIxException('FACT_SHEET_TYPE_NOT_FOUND', `Fact sheet type "${technicalKey}" does not exist`);
     }
     return type;
   }
 
-  async findRelationTypeByKey(technicalKey: string) {
+  async findRelationTypeByKey(workspaceId: string, technicalKey: string) {
     return this.prisma.relationType.findFirst({
-      where: { technicalKey },
+      where: { workspaceId, technicalKey },
       include: { sourceType: true, targetType: true },
     });
   }
 
-  async requireRelationTypeByKey(technicalKey: string) {
-    const relationType = await this.findRelationTypeByKey(technicalKey);
+  async requireRelationTypeByKey(workspaceId: string, technicalKey: string) {
+    const relationType = await this.findRelationTypeByKey(workspaceId, technicalKey);
     if (!relationType) {
       throw new LeanIxException('RELATION_NOT_FOUND', `Relation type "${technicalKey}" does not exist`);
     }

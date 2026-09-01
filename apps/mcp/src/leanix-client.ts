@@ -4,6 +4,13 @@ export interface LeanIxClientConfig {
   baseUrl: string;
   apiToken: string;
   apiTokenSecret: string;
+  /**
+   * Skip this client's own OAuth exchange and use an already-obtained JWT directly — used by
+   * the remote HTTP MCP endpoint (apps/api/src/mcp-server), which resolves the caller's own
+   * Authorization header into a JWT itself and hands it here rather than minting a second one
+   * against a fixed technical user.
+   */
+  presetToken?: string;
 }
 
 /**
@@ -21,6 +28,9 @@ export class LeanIxClient {
   }
 
   private async ensureToken(): Promise<string> {
+    if (this.config.presetToken) {
+      return this.config.presetToken;
+    }
     if (this.token && Date.now() < this.tokenExpiresAt) {
       return this.token;
     }

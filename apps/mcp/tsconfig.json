@@ -5,7 +5,7 @@
     "lib": ["ES2021"],
     "outDir": "dist",
     "rootDir": "src",
-    "declaration": false,
+    "declaration": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

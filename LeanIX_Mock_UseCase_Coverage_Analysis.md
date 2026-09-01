@@ -92,7 +92,7 @@ Question asked: *setting the external systems aside, is the mock complete enough
 | Rate limiting | Real Redis sliding-window limiter, `X-RateLimit-*` headers, `Retry-After` on 429 — but see gap below |
 | Integration API (LDIF) | Real async state machine (CREATED→RUNNING→FINISHED/FAILED), partial-failure per-row logs, two-pass relation resolution |
 | Webhooks | Matches real LeanIX's actual contract (`/services/webhooks/v1/subscriptions`, `identifier`/`targetUrl`/`authorizationHeader`), real HTTP delivery, retry/backoff |
-| MCP server | 8 tools, live-verified over real stdio transport |
+| MCP server | 8 tools, over both stdio (local dev) and a remote Streamable HTTP endpoint matching real LeanIX's actual URL/auth contract (`docs/BUILD_STATUS.md` §7, added 2026-09-01) — usable by any AI Studio/agent-builder platform, not just stdio-capable local clients |
 | Archived/trash-bin | Soft-delete + 90-day retention scheduler |
 
 ### Missing full subsystems (LeanIX-native, nothing external about them)

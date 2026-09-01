@@ -4,9 +4,10 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noCheck",
     "start": "node dist/server.js",
-    "start:dev": "ts-node --transpile-only src/server.ts"
+    "start:dev": "ts-node --transpile-only src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

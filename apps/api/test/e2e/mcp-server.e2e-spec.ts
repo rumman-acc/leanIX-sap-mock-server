@@ -16,16 +16,25 @@ describe('MCP server — remote Streamable HTTP endpoint (e2e)', () => {
   let baseUrl: string;
 
   beforeAll(async () => {
+    // The MCP controller's tools call back into this same process at http://localhost:{config.port}
+    // (see apps/api/src/mcp-server/mcp-server.controller.ts) — config.port is read from PORT at
+    // module registration, so it must be set (and the app must actually listen on it) *before*
+    // compiling the module. An ephemeral app.listen(0) would leave that loopback call pointed at
+    // the wrong port, silently reachable only by coincidence if something else happens to be
+    // listening on the default port.
+    const testPort = 4099;
+    process.env.PORT = String(testPort);
+
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
-    await app.listen(0);
-    const address = app.getHttpServer().address();
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    await app.listen(testPort);
+    baseUrl = `http://127.0.0.1:${testPort}`;
   });
 
   afterAll(async () => {
     await app.close();
+    delete process.env.PORT;
   });
 
   function mcpUrl(query = 'toolsets=inventory') {

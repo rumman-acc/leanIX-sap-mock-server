@@ -121,7 +121,35 @@ Comments/To-Dos/Surveys are **not** workspace-scoped yet (they trust whatever `f
 
 ---
 
-## 8. Mapping to actual use cases
+## 8. Sample data — what's actually there to query
+
+Seeded by `packages/prisma/seed.ts` (`npm run prisma:seed`). Small on purpose — enough to exercise relations/filtering/cross-workspace logic, not a realistic-volume dataset (no bulk generator exists yet, see `LeanIX_Mock_UseCase_Coverage_Analysis.md` §5).
+
+**`ws-development`** — 11 fact sheets, 10 relations, 1 tag, 1 subscription:
+
+| Type | Name(s) |
+|---|---|
+| Application | SAP CRM, Salesforce, E-Commerce Platform |
+| ITComponent | AWS EC2 Instance, PostgreSQL Database |
+| BusinessCapability | Sales Management |
+| Provider | Amazon Web Services |
+| TechCategory | Approved Cloud Providers, Deprecated Frameworks |
+| Objective | Grow Digital Revenue |
+| AIAgent | EA Copilot |
+
+**`ws-acquired-co`** — 5 fact sheets, 2 relations, deliberately overlapping *by name* with the above (for M&A/cross-tenant testing — see §7):
+
+| Type | Name(s) |
+|---|---|
+| Application | SAP Customer 360, Online Store, Workday HR |
+| ITComponent | Azure VM |
+| Provider | Microsoft Azure |
+
+**Zero seed data**: Comments, To-Dos, Surveys, AI Agent Discovery entries. These subsystems are fully built and tested but not pre-populated — your agent (or you, manually) has to create records via the API before there's anything to read back. Don't assume a comment/to-do/survey exists just because you saw one during earlier testing — that's incidental data from live-verifying the endpoints, not part of the seed.
+
+---
+
+## 9. Mapping to actual use cases
 
 The full 30-use-case backlog and what's ready today: `LeanIX_Mock_UseCase_Coverage_Analysis.md`. Short version:
 
@@ -131,7 +159,7 @@ The full 30-use-case backlog and what's ready today: `LeanIX_Mock_UseCase_Covera
 
 ---
 
-## 9. What's mock-only — don't design agent logic around these surviving the swap
+## 10. What's mock-only — don't design agent logic around these surviving the swap
 
 - Webhook `events`/`secret`/HMAC signing, and the mock-only OAuth `client_id`/`client_secret` form
 - `TechCategory`/`Objective`/`AIAgent` types and their custom fields — plausible, not verified against a real workspace

@@ -2,6 +2,8 @@
 
 A LeanIX-compatible mock server: OAuth2 + JWT auth, GraphQL (schema-matched to real LeanIX), REST integration/webhook APIs, LDIF processing, and an MCP server — all backed by real PostgreSQL persistence (no in-memory state) so you can develop and test against LeanIX without a real account.
 
+**Building an agent against this mock?** Start with [`docs/AGENT_BUILDER_GUIDE.md`](./docs/AGENT_BUILDER_GUIDE.md) — one page covering every service (GraphQL, REST subsystems, MCP over both remote HTTP and stdio), auth, and the workspace concept. [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) has the exhaustive field-by-field detail.
+
 See [`LeanIX_Mock_Server_Technical_Specification.md`](./LeanIX_Mock_Server_Technical_Specification.md) for the full spec this implements, and [`docs/BUILD_STATUS.md`](./docs/BUILD_STATUS.md) for exactly what's implemented, live-verified, and any deviations/ambiguity resolutions.
 
 ## Prerequisites

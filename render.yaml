@@ -9,6 +9,7 @@ services:
     buildCommand: >-
       npm install --include=dev &&
       npm run build --workspace=packages/shared &&
+      npm run build --workspace=apps/mcp &&
       npm run generate --workspace=packages/prisma &&
       (cd packages/prisma && npx prisma migrate deploy) &&
       npm run build --workspace=apps/api
